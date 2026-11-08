@@ -1,0 +1,87 @@
+metadata:
+  generated: "2026-11-07"
+  source_plan: "plan.md"
+  target_tasks: "plan.md"
+summary:
+  total_plan_items: 10
+  covered_plan_items: 10
+  missing_plan_items: 0
+  coverage_percentage: 100.0
+  total_tasks_generated: 16
+  orphan_tasks: 0
+phases:
+  - phase_id: Phase-1
+    phase_name: Setup
+    items:
+      - item_id: "1.1"
+        tasks: [{task_id: T001}, {task_id: T002}]
+  - phase_id: Phase-2
+    phase_name: Database and backend foundation
+    items:
+      - item_id: "2.1"
+        tasks: [{task_id: T003}, {task_id: T004}]
+      - item_id: "2.2"
+        tasks: [{task_id: T005}, {task_id: T006}]
+  - phase_id: Phase-3
+    phase_name: Vote with immediate feedback
+    items:
+      - item_id: "3.1"
+        tasks: [{task_id: T007}, {task_id: T008}]
+      - item_id: "3.2"
+        tasks: [{task_id: T009}, {task_id: T010}]
+  - phase_id: Phase-4
+    phase_name: Keep results live
+    items:
+      - item_id: "4.1"
+        tasks: [{task_id: T011}]
+  - phase_id: Phase-5
+    phase_name: Critical validation
+    items:
+      - item_id: "5.1"
+        tasks: [{task_id: T012}, {task_id: T013}]
+      - item_id: "5.2"
+        tasks: [{task_id: T014}]
+  - phase_id: Phase-6
+    phase_name: Delivery and review
+    items:
+      - item_id: "6.1"
+        tasks: [{task_id: T015}]
+      - item_id: "6.2"
+        tasks: [{task_id: T016}]
+missing_plan_items: []
+orphan_tasks: []
+upstream_trace:
+  - plan_item: "1.1"
+    source_requirements: [REQ-001, REQ-004, REQ-009]
+    tasks: [T001, T002]
+  - plan_item: "2.1"
+    source_requirements: [REQ-004, REQ-005, REQ-007]
+    tasks: [T003, T004]
+  - plan_item: "2.2"
+    source_requirements: [REQ-004, REQ-006, REQ-007]
+    tasks: [T005, T006]
+  - plan_item: "3.1"
+    source_requirements: [REQ-001, REQ-002, REQ-008]
+    tasks: [T007, T008]
+  - plan_item: "3.2"
+    source_requirements: [REQ-001, REQ-002, REQ-006, REQ-007]
+    tasks: [T009, T010]
+  - plan_item: "4.1"
+    source_requirements: [REQ-002, REQ-003, REQ-006]
+    tasks: [T011]
+  - plan_item: "5.1"
+    source_requirements: [REQ-004, REQ-005, REQ-006, REQ-007, REQ-011]
+    tasks: [T012, T013]
+  - plan_item: "5.2"
+    source_requirements: [REQ-001, REQ-002, REQ-003, REQ-006, REQ-011]
+    tasks: [T014]
+  - plan_item: "6.1"
+    source_requirements: [REQ-009, REQ-010, REQ-011]
+    tasks: [T015]
+  - plan_item: "6.2"
+    source_requirements: [REQ-009, REQ-010, REQ-012]
+    tasks: [T016]
+validation:
+  passed: true
+  errors: []
+  warnings: ["Task coverage only; T001 and T002 are complete, while the remaining implementation tasks are pending."]

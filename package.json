@@ -1,0 +1,41 @@
+{
+  "name": "polling-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^22.18.0 || ^24.0.0",
+    "npm": ">=10"
+  },
+  "workspaces": [
+    "packages/shared",
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "build:shared": "npm run build --workspace @polling/shared",
+    "predev": "npm run build:shared",
+    "dev": "concurrently --kill-others --names api,web \"npm run dev --workspace @polling/api\" \"npm run dev --workspace @polling/web\"",
+    "pretypecheck": "npm run build:shared",
+    "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces",
+    "pretest": "npm run build:shared",
+    "test": "vitest run",
+    "test:watch": "npm run build:shared && vitest",
+    "test:integration": "npm run build:shared && node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts",
+    "test:all": "npm test && npm run test:integration",
+    "build": "npm run build --workspaces",
+    "start": "npm run start --workspace @polling/api"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22.19.0",
+    "@types/supertest": "^6.0.3",
+    "concurrently": "^10.0.7",
+    "jsdom": "^26.1.0",
+    "supertest": "^7.2.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

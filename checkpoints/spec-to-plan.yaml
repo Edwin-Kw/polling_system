@@ -1,0 +1,65 @@
+metadata:
+  generated: "2026-11-07"
+  source_spec: "P&T High-Concurrency Polling System - Coding assignment.md"
+  target_plan: "plan.md"
+summary:
+  total_requirements: 12
+  covered_requirements: 12
+  missing_requirements: 0
+  coverage_percentage: 100.0
+requirements:
+  - req_id: REQ-001
+    req_description: React poll display, selection and submission
+    plan_mapping:
+      items: [{item_id: "1.1"}, {item_id: "3.1"}, {item_id: "3.2"}, {item_id: "5.2"}]
+  - req_id: REQ-002
+    req_description: Optimistic counts and percentages
+    plan_mapping:
+      items: [{item_id: "3.1"}, {item_id: "3.2"}, {item_id: "4.1"}, {item_id: "5.2"}]
+  - req_id: REQ-003
+    req_description: Automatically refreshed results
+    plan_mapping:
+      items: [{item_id: "4.1"}, {item_id: "5.2"}]
+  - req_id: REQ-004
+    req_description: Node API and persistent storage
+    plan_mapping:
+      items: [{item_id: "1.1"}, {item_id: "2.1"}, {item_id: "2.2"}, {item_id: "5.1"}]
+  - req_id: REQ-005
+    req_description: Accurate concurrent vote recording
+    plan_mapping:
+      items: [{item_id: "2.1"}, {item_id: "5.1"}]
+  - req_id: REQ-006
+    req_description: Simulated failure and contextual rollback
+    plan_mapping:
+      items: [{item_id: "2.2"}, {item_id: "3.2"}, {item_id: "4.1"}, {item_id: "5.1"}, {item_id: "5.2"}]
+  - req_id: REQ-007
+    req_description: Backend duplicate prevention and validation
+    plan_mapping:
+      items: [{item_id: "2.1"}, {item_id: "2.2"}, {item_id: "3.2"}, {item_id: "5.1"}]
+  - req_id: REQ-008
+    req_description: Reusable and unit-testable organization
+    plan_mapping:
+      items: [{item_id: "3.1"}]
+    notes: Additional user requirement.
+  - req_id: REQ-009
+    req_description: Git repository containing both applications
+    plan_mapping:
+      items: [{item_id: "1.1"}, {item_id: "6.1"}, {item_id: "6.2"}]
+  - req_id: REQ-010
+    req_description: Locally runnable full-stack app
+    plan_mapping:
+      items: [{item_id: "6.1"}, {item_id: "6.2"}]
+  - req_id: REQ-011
+    req_description: Automated critical-failure tests
+    plan_mapping:
+      items: [{item_id: "5.1"}, {item_id: "5.2"}, {item_id: "6.1"}]
+  - req_id: REQ-012
+    req_description: Logical commits and honest AI workflow notes
+    plan_mapping:
+      items: [{item_id: "6.2"}]
+missing_requirements: []
+orphan_plan_items: []
+validation:
+  passed: true
+  errors: []
+  warnings: ["Traceability only; implementation and runtime validation are pending."]
