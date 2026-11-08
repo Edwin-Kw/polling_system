@@ -24,6 +24,8 @@ export function usePoll(
   const [state, setState] = useState(initialPollState);
   const current = useRef(state);
   const [attempt, setAttempt] = useState(0);
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [selectedPollId, setSelectedPollId] = useState<string | null>(null);
   const [connection, setConnection] = useState<LiveConnection>("connecting");
   const submitOperation = useRef<(optionId: string) => void>(() => {});
   const transition = useCallback((action: PollAction) => {
@@ -137,8 +139,14 @@ export function usePoll(
       const token = startRequest();
       try {
         userId = getUserId();
-        const poll = await api.getActivePoll(userId, controller.signal);
+        const activePolls = await api.getActivePolls(userId, controller.signal);
         if (!isCurrent(token)) return;
+        setPolls(activePolls);
+        const poll = selectedPollId === null ? activePolls[0] : activePolls.find((entry) => entry.id === selectedPollId);
+        if (!poll) {
+          throw new ApiError(404, "NOT_FOUND", activePolls.length === 0
+            ? "No active poll is available." : "The selected poll is no longer active. Choose another poll.");
+        }
         const results = await api.getResults(poll.id, userId, controller.signal);
         if (!isCurrent(token)) return;
         checkSnapshot(poll, results);
@@ -171,10 +179,23 @@ export function usePoll(
       controller.abort();
       submitOperation.current = () => {};
     };
-  }, [api, getUserId, updates, attempt, transition]);
+  }, [api, getUserId, updates, attempt, selectedPollId, transition]);
 
   return {
     state,
+    polls,
+    selectedPollId: state.poll?.id ?? selectedPollId ?? polls[0]?.id ?? "",
+    canSwitchPoll: state.phase !== "loading" && state.phase !== "submitting" && state.phase !== "reconciling",
+    selectPoll: useCallback((pollId: string) => {
+      const { phase, poll } = current.current;
+      if (phase === "loading" || phase === "submitting" || phase === "reconciling" || poll?.id === pollId) return;
+      if (!polls.some((entry) => entry.id === pollId)) {
+        transition({ type: "rejected", message: "Choose an available active poll." });
+        return;
+      }
+      transition({ type: "reset" });
+      setSelectedPollId(pollId);
+    }, [polls, transition]),
     connection,
     display: state.results ? deriveResults(state.results, state.pendingOption ?? state.confirmedVote) : null,
     canVote: state.phase === "idle" && state.results?.active === true && !state.confirmedVote,

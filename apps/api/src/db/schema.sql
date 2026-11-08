@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS polls (
   active boolean NOT NULL DEFAULT true
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS one_active_poll ON polls (active) WHERE active;
+-- Upgrade existing databases without changing poll data or vote constraints.
+DROP INDEX IF EXISTS one_active_poll;
 
 CREATE TABLE IF NOT EXISTS poll_options (
   id uuid PRIMARY KEY,

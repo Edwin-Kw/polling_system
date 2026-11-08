@@ -19,6 +19,18 @@ export const poll: Poll = {
   ],
 };
 export const optionId = poll.options[0]!.id;
+export const secondPoll: Poll = {
+  id: "00000000-0000-4000-8000-000000000002",
+  question: "What is your preferred state management library in React?",
+  options: [
+    { id: "00000000-0000-4000-8000-000000000021", label: "Redux Toolkit" },
+    { id: "00000000-0000-4000-8000-000000000022", label: "Zustand" },
+  ],
+};
+export const secondResults: PollResults = {
+  pollId: secondPoll.id, active: true, totalVotes: 0, myVote: null,
+  options: secondPoll.options.map((option) => ({ ...option, count: 0 })),
+};
 export const results: PollResults = {
   pollId: poll.id, active: true, totalVotes: 4, myVote: null,
   options: poll.options.map((option, index) => ({ ...option, count: index === 0 ? 1 : 3 })),
@@ -31,6 +43,7 @@ export const getUserId = () => "test-user";
 export function mockApi() {
   return {
     getActivePoll: vi.fn<PollApi["getActivePoll"]>().mockResolvedValue(poll),
+    getActivePolls: vi.fn<PollApi["getActivePolls"]>().mockResolvedValue([poll]),
     getResults: vi.fn<PollApi["getResults"]>().mockResolvedValue(results),
     submitVote: vi.fn<PollApi["submitVote"]>().mockResolvedValue({ pollId: poll.id, optionId }),
   };

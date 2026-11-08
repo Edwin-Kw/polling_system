@@ -19,6 +19,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-panel: var(--panel);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-result-track: var(--result-track);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -26,25 +32,62 @@
 }
 
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.985 0 0);
-  --foreground: oklch(0.145 0 0);
+  color-scheme: light;
+  --radius: 1rem;
+  --background: oklch(0.975 0.006 260);
+  --foreground: oklch(0.22 0.015 260);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: var(--foreground);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.56 0.2 258);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.49 0.02 260);
+  --accent: oklch(0.96 0.025 250);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.86 0.01 260);
+  --input: var(--border);
+  --ring: var(--primary);
+  --panel: oklch(0.985 0.003 260);
+  --success: oklch(0.43 0.12 155);
+  --success-soft: oklch(0.94 0.045 155);
+  --warning: oklch(0.48 0.16 40);
+  --warning-soft: oklch(0.95 0.035 35);
+  --result-track: oklch(0.92 0.009 260);
+  --result-purple: oklch(0.57 0.23 295);
+  --result-blue: oklch(0.65 0.17 240);
+  --result-green: oklch(0.66 0.17 155);
+  --result-orange: oklch(0.75 0.17 65);
+}
+
+@layer components {
+  .poll-result-bar {
+    appearance: none;
+    --result-fill: var(--result-purple);
+  }
+
+  .poll-result-bar[data-tone="1"] { --result-fill: var(--result-blue); }
+  .poll-result-bar[data-tone="2"] { --result-fill: var(--result-green); }
+  .poll-result-bar[data-tone="3"] { --result-fill: var(--result-orange); }
+
+  .poll-result-bar::-webkit-progress-bar {
+    background: var(--result-track);
+    border-radius: var(--radius);
+  }
+
+  .poll-result-bar::-webkit-progress-value {
+    background: var(--result-fill);
+    border-radius: var(--radius);
+  }
+
+  .poll-result-bar::-moz-progress-bar {
+    background: var(--result-fill);
+    border-radius: var(--radius);
+  }
 }
 
 @layer base {

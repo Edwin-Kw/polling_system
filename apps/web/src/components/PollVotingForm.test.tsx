@@ -9,7 +9,7 @@ describe("accessible voting form", () => {
     const onSelect = vi.fn();
     render(<PollVotingForm options={poll.options} selected={null} disabled={false}
       submitting={false} recorded={false} onSelect={onSelect} onSubmit={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Submit vote" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cast Your Vote" })).toBeDisabled();
     screen.getByRole("radio", { name: "Dark mode" }).focus();
     await userEvent.keyboard(" ");
     expect(onSelect).toHaveBeenCalledWith(optionId);

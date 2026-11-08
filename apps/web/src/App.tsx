@@ -10,6 +10,7 @@ import { PollResults } from "./components/PollResults.tsx";
 import { StatusMessage } from "./components/StatusMessage.tsx";
 import { Button } from "./components/ui/button.tsx";
 import { Card, CardContent, CardHeader } from "./components/ui/card.tsx";
+import { NativeSelect, NativeSelectOption } from "./components/ui/native-select.tsx";
 
 interface AppProps {
   api?: PollApi;
@@ -18,45 +19,65 @@ interface AppProps {
 }
 
 export function App({ api = pollApi, getUserId = getMockUserId, updates = pollUpdates }: AppProps) {
-  const { state, display, connection, canVote, submit, retry } = usePoll(api, getUserId, updates);
+  const {
+    state, display, connection, canVote, submit, retry, polls, selectedPollId, canSwitchPoll, selectPoll,
+  } = usePoll(api, getUserId, updates);
   const [selected, setSelected] = useState<string | null>(null);
   const chosen = state.confirmedVote ?? state.pendingOption ?? selected;
   return (
-    <main className="mx-auto min-h-svh w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-      <header className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight">Polls</h1>
-        <p className="mt-2 text-muted-foreground">Have your say. See what everyone thinks.</p>
-      </header>
-      {state.phase === "loading" && <StatusMessage message="Loading the active poll..." />}
-      {(state.phase === "error" || state.phase === "empty") && (
-        <div className="space-y-4">
-          <StatusMessage message={state.error ?? "No active poll is available."} error={state.phase === "error"} />
-          <Button type="button" onClick={retry}>Try again</Button>
+    <main className="mx-auto grid min-h-svh w-full max-w-7xl items-start gap-8 px-4 py-8 sm:px-8 sm:py-12 lg:grid-cols-2 lg:gap-10 lg:py-20 xl:gap-14">
+      <section aria-labelledby="active-poll-title" className="min-w-0 rounded-2xl border bg-panel p-5 shadow-xl shadow-foreground/5 sm:p-7">
+        <h1 id="active-poll-title" className="mb-6 text-2xl font-bold tracking-tight">Active Poll</h1>
+        {state.phase === "loading" && <StatusMessage message="Loading the active poll..." />}
+        {(state.phase === "error" || state.phase === "empty") && (
+          <div className="space-y-4">
+            <StatusMessage message={state.error ?? "No active poll is available."} error={state.phase === "error"} />
+            <Button type="button" onClick={retry}>Try again</Button>
+          </div>
+        )}
+        {state.poll && display && (
+          <Card className="gap-7 py-7 shadow-lg shadow-foreground/5">
+            <CardHeader className="gap-5 px-5 sm:px-7">
+              <p className="text-lg font-semibold text-muted-foreground">High-Concurrency Polling System</p>
+              <h2 className="text-2xl font-bold leading-snug tracking-tight sm:text-3xl">{state.poll.question}</h2>
+            </CardHeader>
+            <CardContent className="space-y-5 px-5 sm:px-7">
+              <PollVotingForm options={state.poll.options} selected={chosen} disabled={!canVote}
+                submitting={state.phase === "submitting"} recorded={state.confirmedVote !== null}
+                onSelect={setSelected} onSubmit={() => { if (chosen) submit(chosen); }} />
+              <p className="text-center text-sm leading-relaxed text-muted-foreground">
+                A mock user identifier is used to prevent multiple submissions to the same poll.
+              </p>
+              {state.phase === "submitting" && <StatusMessage message="Saving your vote. Results include your pending choice." />}
+              {state.confirmedVote && <StatusMessage message="Your vote is recorded." />}
+              {!display.active && <StatusMessage message="This poll is closed. You can still view its results." />}
+            </CardContent>
+          </Card>
+        )}
+      </section>
+      <div className="min-w-0 space-y-7 lg:border-l lg:pl-10 xl:pl-14">
+        <div className="space-y-2 [&_[data-slot=native-select-wrapper]]:w-full">
+          <label htmlFor="active-poll-select" className="block text-base font-medium">Switch active poll</label>
+          <NativeSelect id="active-poll-select" value={selectedPollId}
+            title={polls.find((poll) => poll.id === selectedPollId)?.question}
+            disabled={!canSwitchPoll || polls.length === 0}
+            aria-describedby={state.phase === "submitting" || state.phase === "reconciling" ? "poll-switch-help" : undefined}
+            onChange={(event) => { selectPoll(event.target.value); setSelected(null); }}
+            className="h-12 rounded-xl bg-card px-4 pr-10 text-base shadow-sm">
+            {polls.length === 0 && <NativeSelectOption value="">
+              {state.phase === "loading" ? "Loading polls..." : "No active polls"}
+            </NativeSelectOption>}
+            {polls.map((poll) => <NativeSelectOption key={poll.id} value={poll.id}>{poll.question}</NativeSelectOption>)}
+          </NativeSelect>
+          {(state.phase === "submitting" || state.phase === "reconciling") && (
+            <p id="poll-switch-help" className="text-sm text-muted-foreground">Finish saving or checking your vote before switching polls.</p>
+          )}
         </div>
-      )}
-      {state.poll && display && (
-        <div className="grid items-start gap-6 lg:grid-cols-2">
-          <section aria-labelledby="active-poll-title">
-            <Card>
-              <CardHeader>
-                <p className="text-sm text-muted-foreground">Active poll</p>
-                <h2 id="active-poll-title" className="text-xl font-semibold">{state.poll.question}</h2>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <PollVotingForm options={state.poll.options} selected={chosen} disabled={!canVote}
-                  submitting={state.phase === "submitting"} recorded={state.confirmedVote !== null}
-                  onSelect={setSelected} onSubmit={() => { if (chosen) submit(chosen); }} />
-                {state.phase === "submitting" && <StatusMessage message="Saving your vote. Results include your pending choice." />}
-                {state.confirmedVote && <StatusMessage message="Your vote is recorded." />}
-                {!display.active && <StatusMessage message="This poll is closed. You can still view its results." />}
-                {state.error && <StatusMessage message={state.error} error={state.phase !== "reconciling"} />}
-              </CardContent>
-            </Card>
-          </section>
-          <PollResults results={display} selected={chosen} pending={state.phase === "submitting"}
-            warning={state.warning} connection={connection} />
-        </div>
-      )}
+        {state.poll && display && (
+          <PollResults question={state.poll.question} results={display} selected={chosen} pending={state.phase === "submitting"}
+            warning={state.warning} connection={connection} error={state.error} reconciling={state.phase === "reconciling"} />
+        )}
+      </div>
     </main>
   );
 }

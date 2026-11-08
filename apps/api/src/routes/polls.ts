@@ -22,6 +22,10 @@ export function createPollRoutes(
     response.set("Cache-Control", "no-store");
     next();
   });
+  router.get("/", async (request, response) => {
+    validate(userSchema, request.get("X-Mock-User-Id"));
+    response.json(await repository.getActivePolls());
+  });
   router.get("/active", async (request, response) => {
     validate(userSchema, request.get("X-Mock-User-Id"));
     const poll = await repository.getActivePoll();

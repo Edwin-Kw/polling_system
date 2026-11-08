@@ -35,6 +35,10 @@ export const pollSchema = z.object({
   options: z.array(pollOptionSchema).min(1),
 });
 export type Poll = z.infer<typeof pollSchema>;
+export const activePollsSchema = z.array(pollSchema).refine(
+  (polls) => new Set(polls.map((poll) => poll.id)).size === polls.length,
+  "Duplicate active polls",
+);
 
 export interface VoteRequest {
   optionId: string;

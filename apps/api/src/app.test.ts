@@ -5,6 +5,7 @@ import { createApp } from "./app.ts";
 const votingDependencies = {
   repository: {
     getActivePoll: vi.fn(),
+    getActivePolls: vi.fn(),
     getPoll: vi.fn(),
     getResults: vi.fn(),
     insertVote: vi.fn(),

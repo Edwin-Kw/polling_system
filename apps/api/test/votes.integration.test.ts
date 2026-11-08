@@ -116,7 +116,9 @@ describe("real PostgreSQL voting integrity", () => {
     try {
       expect((await vote("closed-poll")).body.error.code).toBe("POLL_CLOSED");
       expect((await results("closed-poll")).body.myVote).toBeNull();
-      expect((await request(app).get("/api/polls/active").set("X-Mock-User-Id", "observer")).status).toBe(404);
+      const active = await request(app).get("/api/polls/active").set("X-Mock-User-Id", "observer");
+      expect(active.status).toBe(200);
+      expect(active.body.id).not.toBe(pollId);
     } finally {
       await database.pool.query("UPDATE polls SET active = true WHERE id = $1", [pollId]);
     }

@@ -18,6 +18,19 @@ describe("poll API client", () => {
       headers: { "X-Mock-User-Id": "user" }, cache: "no-store", method: "GET",
     }));
   });
+  it("loads and validates real dropdown choices including an empty active list", async () => {
+    const fetch = respond([poll]);
+    await expect(pollApi.getActivePolls("user", signal())).resolves.toEqual([poll]);
+    expect(fetch).toHaveBeenCalledWith("/api/polls", expect.objectContaining({
+      headers: { "X-Mock-User-Id": "user" }, method: "GET", cache: "no-store",
+    }));
+    respond([]);
+    await expect(pollApi.getActivePolls("user", signal())).resolves.toEqual([]);
+    respond([poll, poll]);
+    await expect(pollApi.getActivePolls("user", signal())).rejects.toThrow("Duplicate active polls");
+    respond([{ id: "not-a-poll" }]);
+    await expect(pollApi.getActivePolls("user", signal())).rejects.toThrow();
+  });
   it("sends a JSON vote and requires a 201 acknowledgement", async () => {
     const fetch = respond({ pollId: poll.id, optionId }, 201);
     await expect(pollApi.submitVote(poll.id, optionId, "user", signal()))

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import {
-  apiErrorResponseSchema, pollResultsSchema, pollSchema, voteResponseSchema,
+  activePollsSchema, apiErrorResponseSchema, pollResultsSchema, pollSchema, voteResponseSchema,
 } from "@polling/shared";
 import type { ApiErrorCode, Poll, PollResults, VoteResponse } from "@polling/shared";
 
@@ -16,6 +16,7 @@ export class ApiError extends Error {
 
 export interface PollApi {
   getActivePoll(userId: string, signal: AbortSignal): Promise<Poll>;
+  getActivePolls(userId: string, signal: AbortSignal): Promise<Poll[]>;
   getResults(pollId: string, userId: string, signal: AbortSignal): Promise<PollResults>;
   submitVote(pollId: string, optionId: string, userId: string, signal: AbortSignal): Promise<VoteResponse>;
 }
@@ -52,6 +53,7 @@ async function send<T>(
 
 export const pollApi: PollApi = {
   getActivePoll: (userId, signal) => send("/api/polls/active", userId, signal, pollSchema, 200),
+  getActivePolls: (userId, signal) => send("/api/polls", userId, signal, activePollsSchema, 200),
   getResults: (pollId, userId, signal) =>
     send(`/api/polls/${pollId}/results`, userId, signal, pollResultsSchema, 200),
   submitVote: (pollId, optionId, userId, signal) =>

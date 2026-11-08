@@ -5,6 +5,7 @@ const poll = { id: "poll", question: "Question", active: true, options: [{ id: "
 function repository() {
   return {
     getActivePoll: vi.fn(),
+    getActivePolls: vi.fn(),
     getResults: vi.fn(),
     getPoll: vi.fn().mockResolvedValue(poll),
     insertVote: vi.fn().mockResolvedValue(true),

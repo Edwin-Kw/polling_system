@@ -4,13 +4,14 @@ import type { Poll, PollResults } from "@polling/shared";
 
 export interface PollRepository {
   getActivePoll(): Promise<Poll | null>;
+  getActivePolls(): Promise<Poll[]>;
   getPoll(pollId: string): Promise<(Poll & { active: boolean }) | null>;
   getResults(pollId: string, userId: string): Promise<PollResults | null>;
   insertVote(pollId: string, optionId: string, userId: string): Promise<boolean>;
 }
 
 export function createPollRepository(pool: pg.Pool): PollRepository {
-  async function readPoll(pollId: string | null) {
+  async function readPolls(pollId: string | null) {
     const result = await pool.query<{ poll: unknown; active: boolean }>(`
       SELECT jsonb_build_object('id', p.id, 'question', p.question,
         'options', jsonb_agg(jsonb_build_object('id', o.id, 'label', o.label)
@@ -18,14 +19,15 @@ export function createPollRepository(pool: pg.Pool): PollRepository {
       FROM polls p JOIN poll_options o ON o.poll_id = p.id
       WHERE ($1::uuid IS NULL AND p.active) OR p.id = $1::uuid
       GROUP BY p.id
+      ORDER BY p.id
     `, [pollId]);
-    const row = result.rows[0];
-    return row ? { ...pollSchema.parse(row.poll), active: row.active } : null;
+    return result.rows.map((row) => ({ ...pollSchema.parse(row.poll), active: row.active }));
   }
 
   return {
-    getActivePoll: () => readPoll(null),
-    getPoll: readPoll,
+    getActivePoll: async () => (await readPolls(null))[0] ?? null,
+    getActivePolls: async () => (await readPolls(null)).map(({ id, question, options }) => ({ id, question, options })),
+    getPoll: async (pollId) => (await readPolls(pollId))[0] ?? null,
     async getResults(pollId, userId) {
       // Counts and this user's vote are derived from the same SQL statement snapshot.
       const result = await pool.query<{ results: unknown }>(`
