@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchHealth } from "./health.ts";
+import { apiPaths } from "@polling/shared";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -12,7 +13,7 @@ describe("health API client", () => {
     const signal = new AbortController().signal;
 
     await expect(fetchHealth(signal)).resolves.toEqual(body);
-    expect(fetch).toHaveBeenCalledWith("/api/health", { signal });
+    expect(fetch).toHaveBeenCalledWith(apiPaths.health, { signal });
   });
 
   it("surfaces non-success responses", async () => {

@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-07  
 **Assignment:** [Coding assignment](./P&T%20High-Concurrency%20Polling%20System%20-%20Coding%20assignment.md)  
-**Status:** Setup scaffold created; validation results are recorded in `README.md` and `AGENT_WORKFLOW.md`. Voting implementation remains pending.
+**Status:** Voting and required Socket.IO live updates implemented and validated on 2026-11-08. All 68 unit/UI tests, 18 real PostgreSQL/socket integration tests, type checks, build, and Docker tests passed. The latest changes still need a user-requested commit/push.
 
 ## 1. Summary and scope
 
@@ -10,9 +10,22 @@ Build a small TypeScript monorepo using React, Node.js, Express, and PostgreSQL.
 
 PostgreSQL is feasible for local development: Docker supplies the database, so only Docker Desktop with Compose is required for the containerized workflow. A named Docker volume preserves votes across restarts.
 
-Use one seeded active poll with four options, a stable mock user identifier, and results refreshed every two seconds. The reference screenshot's poll switcher is illustrative; supporting multiple selectable polls is outside the four-hour MVP. Database tables still use poll IDs.
+This implementation seeds one active poll with four options and uses a stable mock user identifier. Socket.IO must deliver live change notifications; HTTP polling every two seconds is a disconnected/recovery fallback, not a replacement for sockets. The poll/option quantities and fallback interval are MVP choices, not quantities or intervals mandated by the assignment. The written requirements ask for the active poll; the reference screenshot also shows a poll switcher, which this implementation does not provide. Database tables still use poll IDs.
 
-Do not add authentication, Redis, microservices, an ORM, a generic repository framework, a global state library, or WebSockets. React's built-in state and HTTP polling are sufficient. Use Tailwind CSS and shadcn/ui as requested; keep all setup/agent commentary out of the product UI.
+The original assignment does not prohibit authentication, Redis, microservices, ORMs, repository abstractions, global state libraries, or WebSockets. Polling, WebSockets, and Server-Sent Events are all explicitly allowed by that document. The user's subsequent instruction, "where is the socket io it is a must", makes Socket.IO mandatory for this repository implementation. Keep mock identity, direct PostgreSQL queries, and React hooks; these do not conflict with Socket.IO.
+
+Tailwind CSS and shadcn/ui are additional user preferences, not requirements in the original assignment. Keeping setup/agent commentary out of the product UI is also a product presentation choice.
+
+### Requirements from the original assignment
+
+- React frontend and Node.js backend with poll display, answer selection, and submission.
+- Immediate optimistic UI updates, plus vote counts and percentages.
+- A mechanism to keep results current, with polling, WebSockets, or SSE given as examples.
+- Endpoints to fetch the active poll, submit a vote, and fetch results.
+- Concurrency-safe storage that records all 100 concurrent votes for the same option without lost updates. A database of choice or a robust in-memory structure is permitted.
+- A simulated 15% submission failure rate, with graceful rollback and contextual errors.
+- Backend-enforced prevention of repeat voting by the same user; mock user ID, session, or IP simulation is permitted. Real authentication is not required.
+- Git source, atomic logical commits, a locally runnable application, at least one critical-failure automated test suite, and honest AI workflow documentation.
 
 ## 2. Technical context
 
@@ -23,6 +36,7 @@ Do not add authentication, Redis, microservices, an ORM, a generic repository fr
 | Workspace | npm workspaces | One lockfile and root commands; no extra monorepo tooling |
 | UI | `react`, `react-dom`, Vite | Small SPA with a fast development server |
 | Backend | `express` | Straightforward routing and centralized error handling |
+| Live updates | `socket.io`, `socket.io-client` | Required push notifications; reconnect and safe HTTP fallback |
 | Database | PostgreSQL 17 with `pg` | SQL constraints enforce vote integrity |
 | Runtime validation | `zod` | Validate incoming API data; TypeScript alone cannot do this |
 | Backend tests | `vitest`, `supertest` | Unit tests and HTTP integration tests without binding a port |
@@ -115,7 +129,7 @@ polling_sys/
         results.test.ts
 ```
 
-The tree describes the target layout. Workspace manifests, shared types, API/configuration scaffold, and frontend/test foundations now exist; voting-specific files remain planned. Keep layers small: routes call the vote service and repository; do not add a class or factory for every function.
+The tree describes the implemented architecture. Startup initializes the SQL schema/seed; routes call the vote service and repository. Additional focused client, identity, poll-contract, and TCP runtime tests cover the same requirements.
 
 ## 4. Reuse and unit-test boundaries
 
@@ -126,7 +140,10 @@ The tree describes the target layout. Workspace manifests, shared types, API/con
 - `pollState` is a pure reducer. Model confirmed server results separately from a pending local vote.
 - `results.ts` calculates totals and percentages in one place. Zero votes produce 0%, never `NaN`; rounding is display-only and may not sum to exactly 100%.
 - `api/polls.ts` owns headers, JSON handling, non-2xx errors, and cancellation. Do not duplicate fetch handling inside components.
+- `api/pollUpdates.ts` owns the Socket.IO client, message validation, reconnection, and cleanup. The hook injects its subscription interface for deterministic tests.
 - The shared package exports transport types and pure helpers, not server configuration or database code. HTTP input still requires runtime validation.
+- `packages/shared/src/transport.ts` is the source of API paths/router patterns, the mock identity header, and Socket.IO path/event names. Clients, Express, Vite, and request tests reuse those definitions; contract tests independently assert the published strings.
+- `packages/shared/src/development.ts` is a separate Node-side export for host/port defaults, address validation, and origin formatting. API configuration and Vite use the same root `.env` address settings with shell overrides; database configuration stays in the API workspace. Vite reads only address fields without letting the backend's `NODE_ENV` change browser build mode.
 - `createApp` accepts the repository and failure policy. Importing it does not open a port or connect to PostgreSQL.
 - Inject `random`, the frontend API interface, and the mock user provider for deterministic tests. Use fake timers for refresh tests.
 - Keep pure unit tests independent of Docker. Do not mock SQL and describe that as a concurrency proof.
@@ -165,6 +182,16 @@ Use an explicit error body such as `{ error: { code, message } }`. Validate body
 
 The identifier is a simulation, not authentication: clearing localStorage or changing the header can impersonate another mock user. Document this limitation rather than claiming production-grade abuse prevention.
 
+### Required Socket.IO contract
+
+Attach Socket.IO to the API HTTP server after its Express request handler has been registered, so the engine exclusively handles `/socket.io/` requests. Vite proxies both HTTP and WebSocket traffic on that path.
+
+After each committed vote, emit `poll:changed` with exactly `{ pollId }`. Rejections, duplicate votes, and simulated failures emit nothing. Do not broadcast `myVote`, user identifiers, or personalized results; clients fetch their own authoritative snapshot through HTTP. If publishing throws after commit, log it without misreporting the saved vote as rejected.
+
+Clients connect after loading the poll, validate incoming events, and ignore events for other polls. A notification triggers an immediate non-overlapping GET; bursts coalesce into one follow-up read. Socket connection/reconnection also refreshes the snapshot to recover changes missed while offline. Connection status shown in the UI must reflect actual connection events.
+
+This MVP has a single API instance and the default in-process Socket.IO adapter. Multiple API instances do not share notifications; a future multi-instance deployment would require an appropriate shared adapter or database event bridge. PostgreSQL vote integrity remains authoritative independently of the notification transport.
+
 ### Failure simulation
 
 For valid vote submissions, apply a configurable policy before any database mutation. Default rate: 0.15, with `random() < failureRate` returning an explicit HTTP 500 and a stable error code.
@@ -183,14 +210,14 @@ Set the rate to zero for concurrency tests. Inject exact random values to test b
 6. On a known 500 rejection, remove only the pending overlay, retain the latest confirmed results, display a contextual error, and allow retry. Do not restore an entire old snapshot that discards other users' votes.
 7. On 409, remove the overlay and refetch `myVote` and results; disable voting if a vote is already recorded.
 8. On connection loss or client cancellation, the server may already have committed. Remove the overlay, display "Vote status unknown; checking", and reconcile through the results endpoint before offering another submission. Never automatically repeat the POST.
-9. Refresh every two seconds using a timeout scheduled after the prior request completes. Pause refresh while submitting or reconciling; clean up timers and requests on unmount.
+9. Refresh immediately on Socket.IO changes and reconnects. Queue/coalesce changes during an in-flight refresh, and defer them while submitting. Use two-second completion-scheduled polling while sockets are disconnected or results/reconciliation need recovery; use a 30-second safety read while connected. Reconciliation reads remain allowed, but never repeat a POST automatically. Clean up socket listeners, timers, and requests on unmount.
 10. A refresh failure keeps the last confirmed results visible with a warning. Recover on the next scheduled refresh; do not show invented zero counts.
 
 The unique database constraint prevents a retry from recording a second vote even after an ambiguous network failure.
 
 ## 7. Docker and local commands
 
-These are commands the implementation must provide; they do not work yet.
+These commands are implemented. Docker startup was validated with a temporary port-3001 override to avoid interrupting the existing development API on port 3000.
 
 ### Containerized workflow
 
@@ -208,10 +235,10 @@ docker compose down
 - Start the app only after the database is healthy; run idempotent schema/seed initialization before listening.
 - `test`: test-profile service using a Docker build target with development dependencies and source tests. Its command runs unit/UI tests and real PostgreSQL integration tests.
 - API URLs stay relative to `/api`; no Nginx or CORS package is required for the same-origin deployment.
-- A Vite development proxy forwards `/api` to the backend when running outside Docker.
+- A Vite development proxy forwards `/api` and `/socket.io` (including WebSocket upgrades) to the backend when running outside Docker.
 - Publish PostgreSQL only on `127.0.0.1:5433` if host-based development/testing needs it. Inside Compose, connect to `db:5432`, never `localhost`.
 - Supply visibly local-only database placeholders through Compose defaults and `.env.example`; never commit real credentials or `.env`.
-- Use `npm ci`, non-root runtime execution, a named data volume, and SIGTERM cleanup of the HTTP server and database pool.
+- Use `npm ci`, non-root runtime execution, a named data volume, and SIGTERM cleanup of Socket.IO clients, the HTTP server, and the database pool.
 - `docker compose down` preserves data. Document volume deletion separately as destructive; do not include it in routine cleanup.
 
 ### Host development and validation
@@ -249,13 +276,15 @@ npm run build
 
 The concurrency tests demonstrate 100 overlapping requests, not guaranteed arrival at the literal same millisecond. The insert and unique constraints provide the integrity guarantee.
 
+The synchronized TCP suite additionally preconnects 100 clients and releases their request bodies in one synchronous loop. It reports client release span, server body-completion span, and the largest group in one millisecond bucket using a monotonic clock. Timing is measured, not asserted to be exactly one millisecond: TCP and event-loop scheduling prevent that guarantee. Run it with `npm run test:integration -- apps\api\test\synchronizedVotes.integration.test.ts --reporter=verbose --silent=false`.
+
 Use a unique, generated PostgreSQL schema per integration suite and configure every test connection to use it. Apply schema and seed there; tear down only that exact test-owned schema after closing its pool. Never truncate the normal application database or use a shared development schema. Wait for all test requests to settle before teardown.
 
 Minimum assignment evidence is one critical-failure suite. Aim to deliver both the concurrency suite and optimistic rollback suite; do not trade them away for optional UI features.
 
 ## 9. Implementation steps and inline tasks
 
-The following REQ IDs are planning labels derived from the assignment, not IDs present in the source document. Only the two setup tasks are checked; the remaining tasks need full implementation and validation.
+The following REQ IDs are planning labels derived from the assignment, not IDs present in the source document. Implementation and validation are complete; publishing and meaningful subsequent commits remain user-controlled.
 
 ### Phase 1: Setup - 25 minutes
 
@@ -270,66 +299,70 @@ The following REQ IDs are planning labels derived from the assignment, not IDs p
 **Plan 2.1:** Implement persistent poll storage and database-enforced single voting.  
 **Requirements:** REQ-004, REQ-005, REQ-007.
 
-- [ ] T003 [Plan:2.1] Implement constraints and repeatable seed/setup in `apps/api/src/db/schema.sql`, `apps/api/src/db/seed.sql`, and `apps/api/src/db/migrate.ts`.
-- [ ] T004 [Plan:2.1] Implement parameterized insert and snapshot-consistent results query in `apps/api/src/db/pollRepository.ts` with connection setup in `apps/api/src/db/pool.ts`.
+- [x] T003 [Plan:2.1] Implement constraints and repeatable seed/setup in `apps/api/src/db/schema.sql`, `apps/api/src/db/seed.sql`, and `apps/api/src/db/migrate.ts`.
+- [x] T004 [Plan:2.1] Implement parameterized insert and snapshot-consistent results query in `apps/api/src/db/pollRepository.ts` with connection setup in `apps/api/src/db/pool.ts`.
 
 **Plan 2.2:** Wire validated endpoints and deterministic failure simulation.  
 **Requirements:** REQ-004, REQ-006, REQ-007.
 
-- [ ] T005 [Plan:2.2] Implement `apps/api/src/services/voteService.ts`, `apps/api/src/routes/polls.ts`, `apps/api/src/app.ts`, and `apps/api/src/middleware/errorHandler.ts` with injected dependencies and explicit error codes.
-- [ ] T006 [Plan:2.2] Implement injectable pre-write failure policy in `apps/api/src/testing/failurePolicy.ts`, validate environment in `apps/api/src/config.ts`, and wire runtime startup/shutdown in `apps/api/src/server.ts`.
+- [x] T005 [Plan:2.2] Implement `apps/api/src/services/voteService.ts`, `apps/api/src/routes/polls.ts`, `apps/api/src/app.ts`, and `apps/api/src/middleware/errorHandler.ts` with injected dependencies and explicit error codes.
+- [x] T006 [Plan:2.2] Implement injectable pre-write failure policy in `apps/api/src/testing/failurePolicy.ts`, validate environment in `apps/api/src/config.ts`, and wire runtime startup/shutdown in `apps/api/src/server.ts`.
 
 ### Phase 3: US1 - Vote with immediate feedback - 45 minutes
 
 **Plan 3.1:** Build reusable presentation and pure result calculations.  
 **Requirements:** REQ-001, REQ-002, REQ-008.
 
-- [ ] T007 [US1] [Plan:3.1] Implement and test `packages/shared/src/results.ts` and `packages/shared/src/results.test.ts`.
-- [ ] T008 [US1] [Plan:3.1] Implement accessible `apps/web/src/components/PollVotingForm.tsx`, `PollResults.tsx`, `OptionResult.tsx`, and `StatusMessage.tsx`; compose them in `apps/web/src/App.tsx` with `apps/web/src/styles.css`.
+- [x] T007 [US1] [Plan:3.1] Implement and test `packages/shared/src/results.ts` and `packages/shared/src/results.test.ts`.
+- [x] T008 [US1] [Plan:3.1] Implement accessible `apps/web/src/components/PollVotingForm.tsx`, `PollResults.tsx`, `OptionResult.tsx`, and `StatusMessage.tsx`; compose them in `apps/web/src/App.tsx` with `apps/web/src/styles.css`.
 
 **Plan 3.2:** Implement optimistic overlay, rollback, and stable mock identity.  
 **Requirements:** REQ-001, REQ-002, REQ-006, REQ-007.
 
-- [ ] T009 [US1] [Plan:3.2] Implement typed request handling in `apps/web/src/api/polls.ts` and injectable stable ID provider in `apps/web/src/identity/mockUser.ts`.
-- [ ] T010 [US1] [Plan:3.2] Implement pure optimistic state in `apps/web/src/state/pollState.ts` and submission/reconciliation in `apps/web/src/hooks/usePoll.ts`; wire the hook into `apps/web/src/App.tsx`.
+- [x] T009 [US1] [Plan:3.2] Implement typed request handling in `apps/web/src/api/polls.ts` and injectable stable ID provider in `apps/web/src/identity/mockUser.ts`.
+- [x] T010 [US1] [Plan:3.2] Implement pure optimistic state in `apps/web/src/state/pollState.ts` and submission/reconciliation in `apps/web/src/hooks/usePoll.ts`; wire the hook into `apps/web/src/App.tsx`.
 
 ### Phase 4: US2 - Keep results live - 20 minutes
 
 **Plan 4.1:** Add non-overlapping refresh, stale-response protection, and recovery.  
 **Requirements:** REQ-002, REQ-003, REQ-006.
 
-- [ ] T011 [US2] [Plan:4.1] Add two-second refresh and cancellation cleanup to `apps/web/src/hooks/usePoll.ts`; expose updating and stale-result warnings to `apps/web/src/components/PollResults.tsx`.
+- [x] T011 [US2] [Plan:4.1] Implement completion-scheduled fallback/recovery refresh and cancellation cleanup in `apps/web/src/hooks/usePoll.ts`; expose stale-result warnings and honest live-connection status in `apps/web/src/components/PollResults.tsx`.
+
+- [x] T017 [US2] [Plan:4.1] Implement required Socket.IO server/client, post-commit invalidations, WebSocket development proxy, burst coalescing, disconnect/reconnect recovery, transport cleanup, and real socket integration tests. Trace REQ-003 and user-added REQ-013.
 
 ### Phase 5: Critical validation - 55 minutes
 
 **Plan 5.1:** Prove database integrity and failure behavior.  
 **Requirements:** REQ-004, REQ-005, REQ-006, REQ-007, REQ-011.
 
-- [ ] T012 [Plan:5.1] Configure `vitest.config.ts` and `vitest.integration.config.ts`; implement isolated-schema harness in `apps/api/test/database.ts` and concurrent/validation HTTP tests in `apps/api/test/votes.integration.test.ts`.
-- [ ] T013 [Plan:5.1] Test failure thresholds and service error mapping in `apps/api/src/testing/failurePolicy.test.ts` and `apps/api/src/services/voteService.test.ts`.
+- [x] T012 [Plan:5.1] Configure `vitest.config.ts` and `vitest.integration.config.ts`; implement isolated-schema harness in `apps/api/test/database.ts` and concurrent/validation HTTP tests in `apps/api/test/votes.integration.test.ts`.
+- [x] T013 [Plan:5.1] Test failure thresholds and service error mapping in `apps/api/src/testing/failurePolicy.test.ts` and `apps/api/src/services/voteService.test.ts`.
 
 **Plan 5.2:** Prove optimistic behavior and refresh race handling.  
 **Requirements:** REQ-001, REQ-002, REQ-003, REQ-006, REQ-011.
 
-- [ ] T014 [Plan:5.2] Implement `apps/web/src/test/setup.ts`, `apps/web/src/state/pollState.test.ts`, `apps/web/src/hooks/usePoll.test.tsx`, and `apps/web/src/components/PollVotingForm.test.tsx` using deferred promises and fake timers.
+- [x] T014 [Plan:5.2] Implement `apps/web/src/test/setup.ts`, `apps/web/src/state/pollState.test.ts`, `apps/web/src/hooks/usePoll.test.tsx`, and `apps/web/src/components/PollVotingForm.test.tsx` using deferred promises and fake timers.
 
 ### Phase 6: Delivery and review - 50 minutes
 
 **Plan 6.1:** Package local runtime and test execution.  
 **Requirements:** REQ-009, REQ-010, REQ-011.
 
-- [ ] T015 [Plan:6.1] Create `Dockerfile`, `compose.yaml`, `.dockerignore`, `.gitignore`, and `.env.example`; validate typecheck, tests, build, Docker readiness, and persistence using the commands in section 7.
+- [x] T015 [Plan:6.1] Create `Dockerfile`, `compose.yaml`, `.dockerignore`, `.gitignore`, and `.env.example`; validate typecheck, tests, build, Docker readiness, and persistence using the commands in section 7.
 
 **Plan 6.2:** Document actual workflow and prepare the repository handoff.  
 **Requirements:** REQ-009, REQ-010, REQ-012.
 
-- [ ] T016 [Plan:6.2] Write verified setup/test commands in `README.md`, actual prompts and audited fixes in `AGENT_WORKFLOW.md`, and complete the checklist in `DELIVERABLES.md`; inspect repository history and tracked files for the handoff.
+- [x] T016 [Plan:6.2] Write verified setup/test commands in `README.md`, actual prompts and audited fixes in `AGENT_WORKFLOW.md`, and record verified/pending handoff items in `DELIVERABLES.md`; inspect repository history and tracked files for the handoff.
 
-Total time budget: 240 minutes. Commit each meaningful working slice throughout implementation, not only during phase 6. If behind schedule, reduce styling and optional refinements, not integrity checks or required deliverables.
+Total time budget: 240 minutes. Make logical commits only when requested; never fabricate incremental history. If behind schedule, reduce styling and optional refinements, not integrity checks or required deliverables.
 
 ### Dependencies
 
 T002 follows T001. T003 follows T002; T004 follows T003. T005 follows T004; T006 follows T005. T007 follows T002; T008 follows T007. T009 follows T002; T010 follows T007, T008, and T009. T011 follows T010. T012 follows T006; T013 follows T006 and T012. T014 follows T007, T011, and T012. T015 follows the implementation and test tasks. T016 follows T015.
+
+T017 follows T006, T011, and T012, extending the already validated voting flow without changing the HTTP vote contract or database constraints.
 
 These express prerequisites, not a requirement to use parallel agents.
 
@@ -339,7 +372,7 @@ These express prerequisites, not a requirement to use parallel agents.
 |--------|------------------------|------------|---------------------------------|
 | REQ-001 | React poll display, answer selection, submission | 1.1, 3.1, 3.2, 5.2 | `apps/web/src/App.tsx`, `components/PollVotingForm.tsx` |
 | REQ-002 | Immediate optimistic counts and percentages | 3.1, 3.2, 4.1, 5.2 | `packages/shared/src/results.ts`, `state/pollState.ts` |
-| REQ-003 | Automatically updated results | 4.1, 5.2 | `hooks/usePoll.ts`, `hooks/usePoll.test.tsx` |
+| REQ-003 | Automatically updated results | 4.1, 5.2 | `hooks/usePoll.ts`, `api/pollUpdates.ts`, realtime hook/socket tests |
 | REQ-004 | Node API for active poll, vote, and results with storage | 1.1, 2.1, 2.2, 5.1 | `apps/api/src/routes/polls.ts`, `db/pollRepository.ts` |
 | REQ-005 | Record 100 simultaneous distinct-user votes accurately | 2.1, 5.1 | `db/schema.sql`, `test/votes.integration.test.ts` |
 | REQ-006 | 15% simulated failure; rollback and contextual errors | 2.2, 3.2, 4.1, 5.1, 5.2 | `testing/failurePolicy.ts`, `hooks/usePoll.test.tsx` |
@@ -349,5 +382,6 @@ These express prerequisites, not a requirement to use parallel agents.
 | REQ-010 | Locally runnable full-stack app | 6.1, 6.2 | `Dockerfile`, `compose.yaml`, `README.md` |
 | REQ-011 | Automated tests covering a critical failure mode | 5.1, 5.2, 6.1 | Concurrency and rollback suites; test-profile service |
 | REQ-012 | Atomic logical commits and honest AI workflow notes | 6.2 | Actual Git history, `AGENT_WORKFLOW.md`, delivery checklist |
+| REQ-013 | User-required Socket.IO live updates | 4.1, 5.1, 5.2 | `apps/api/src/realtime/socketServer.ts`, `apps/web/src/api/pollUpdates.ts`, `apps/api/test/realtime.integration.test.ts` |
 
-REQ-008 comes from the user's additional organization/testing request. All 12 requirements have planned coverage; setup is implemented, but complete assignment coverage is not yet claimed.
+REQ-008 and REQ-013 come from additional user requests, not the original assignment. Functional voting, required Socket.IO, concurrency, rollback, and local-runtime requirements have implementation/test evidence. The commit-history handoff remains pending; passing application tests does not fulfill that separate deliverable.

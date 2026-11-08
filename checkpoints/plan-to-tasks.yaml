@@ -1,5 +1,5 @@
 metadata:
-  generated: "2026-11-07"
+  generated: "2026-11-08"
   source_plan: "plan.md"
   target_tasks: "plan.md"
 summary:
@@ -7,7 +7,7 @@ summary:
   covered_plan_items: 10
   missing_plan_items: 0
   coverage_percentage: 100.0
-  total_tasks_generated: 16
+  total_tasks_generated: 17
   orphan_tasks: 0
 phases:
   - phase_id: Phase-1
@@ -33,7 +33,7 @@ phases:
     phase_name: Keep results live
     items:
       - item_id: "4.1"
-        tasks: [{task_id: T011}]
+        tasks: [{task_id: T011}, {task_id: T017}]
   - phase_id: Phase-5
     phase_name: Critical validation
     items:
@@ -67,8 +67,8 @@ upstream_trace:
     source_requirements: [REQ-001, REQ-002, REQ-006, REQ-007]
     tasks: [T009, T010]
   - plan_item: "4.1"
-    source_requirements: [REQ-002, REQ-003, REQ-006]
-    tasks: [T011]
+    source_requirements: [REQ-002, REQ-003, REQ-006, REQ-013]
+    tasks: [T011, T017]
   - plan_item: "5.1"
     source_requirements: [REQ-004, REQ-005, REQ-006, REQ-007, REQ-011]
     tasks: [T012, T013]
@@ -84,4 +84,4 @@ upstream_trace:
 validation:
   passed: true
   errors: []
-  warnings: ["Task coverage only; T001 and T002 are complete, while the remaining implementation tasks are pending."]
+  warnings: ["Implementation and Socket.IO validation are recorded in tasks-to-impl.yaml; commit/push handoff remains pending."]

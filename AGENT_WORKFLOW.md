@@ -1,48 +1,33 @@
-# Agent-assisted workflow
-
-## Scope so far
-
-This document records repository setup and subsequent UI foundation refinements. It is not a claim that the full assignment is complete.
+# AI-Assisted Development Workflow
 
 ## Tools and prompt strategy
 
-The user asked an AI assistant using Copilot SDK in VS Code to convert the assignment PDF, prepare a repository plan, and then set up the approved React/Node.js/PostgreSQL/Docker stack.
+I used GitHub Copilot in VS Code to help plan, implement, test, and refine the polling application.
 
-The setup request was: "the stack is good, help me setup first".
+I divided the work into focused stages: project setup, PostgreSQL storage, API validation, optimistic voting, Socket.IO updates, UI styling, and concurrency testing. I supplied the assignment and existing plan as context, then clarified requirements when the generated approach differed from my expectations.
 
-Work was bounded to scaffolding, shared types, database readiness, runtime packaging, and test foundations. Voting behavior remains a separate slice. The original assignment and plan were retained as context.
+My prompts emphasized important invariants: database-enforced duplicate prevention, no JavaScript read-modify-write counters, honest error reporting, and separation of confirmed results from pending votes. Later requests addressed specific improvements, including mandatory Socket.IO, matching the reference image, and reusing API paths and server settings.
 
-## Decisions audited during setup
+## Bugs, Architectural Flaws, and Edge Cases Audited
 
-- The machine has Node.js 22.20, while the planned Docker runtime is Node.js 24. Native TypeScript execution works on the supported Node.js versions, so an extra `tsx` dependency is unnecessary.
-- The newest inspected `jsdom` release requires a newer Node.js patch than the host provides. The scaffold uses the compatible 26.x line rather than installing a known incompatible version.
-- Docker Desktop was not found. Database readiness failures are surfaced as HTTP 503 and visible UI errors; no in-memory database or fake success was substituted.
-- Backend app construction is separate from server startup. Unit tests inject database checks; a separate integration test requires real PostgreSQL.
+I used AI assistance for implementation, debugging, and testing. I guided requirements and challenged incorrect assumptions, while several technical defects were discovered through tests and browser checks performed by the assistant. I did not independently discover or manually code every fix.
 
-## Pending implementation notes
+### Issues I challenged directly
 
-Record actual prompts, bugs observed, fixes made, and exact validation results as the voting slices are implemented. Do not invent audit findings or report unexecuted tests as passing.
+- **Incorrect assignment interpretation:** The AI initially presented architecture choices as assignment restrictions. I requested a review of the original assignment, and the plan was corrected.
+- **Missing requested functionality:** I explicitly requested Socket.IO, reference-image styling, and a working active-poll dropdown. These were follow-up requirements, not defects in the original assignment.
+- **Repeated configuration:** I noticed repeated API paths and server addresses and requested shared definitions to make them easier to maintain.
 
-## Observed test flaw and correction
+### Issues found during AI-assisted validation
 
-The first frontend readiness test waited for an element with role `status`. That element already existed during loading, so the assertion ran before the success message arrived. The test failed with "Checking API and PostgreSQL..." instead of the expected connected message. It was corrected to wait for the exact success text using `waitFor`, rather than weakening the assertion or changing application behavior.
+- **Socket.IO handler conflict:** Browser validation exposed duplicate handling of HTTP polling requests, causing `ERR_HTTP_HEADERS_SENT`. The assistant corrected the handler attachment order and added a regression test.
+- **Stale error messages:** A regression test revealed that an earlier rejection remained visible after the server confirmed a vote from another tab. The assistant updated the state handling to clear obsolete errors.
+- **Incorrect frontend build mode:** During configuration refactoring, the build output revealed that loading backend environment settings through Vite selected development-mode frontend code. The assistant revised environment loading and added a regression test.
 
-## Setup validation results
+### Edge cases verified
 
-- Type checks passed for application code, tests, and Vitest configuration.
-- All 14 unit/UI tests passed after correcting the asynchronous assertion.
-- Shared, API, and frontend production builds passed.
-- Both development servers and the Vite API proxy were verified through actual HTTP requests; the temporary validation servers were stopped afterward.
-- The compiled server served frontend HTML/assets successfully and explicitly reported the unavailable PostgreSQL database.
-- The real PostgreSQL connectivity test failed with connection refused because Docker/PostgreSQL are unavailable. Docker builds and container execution are not claimed validated.
-- Dependency installation reported zero known vulnerabilities.
+Tests covered duplicate concurrent submissions, optimistic rollback, uncertain network outcomes, stale responses, and poll-switching state isolation.
 
-## Product UI refinement
+The synchronized test verified 100 saved votes from 100 distinct users. It did not achieve or claim exact-same-millisecond arrival; actual timing was measured and reported.
 
-The user requested `AGENTS.md`, Tailwind CSS, shadcn/ui, and removal of interview/setup commentary from the application. Repository rules now separate product-facing content from development documentation.
-
-Tailwind's Vite plugin and semantic theme variables replace the handcrafted layout styles. The shadcn CLI generated Button, Card, and Alert primitives. Its generated files import `class-variance-authority`, but the CLI did not install that dependency; it was declared directly rather than depending on an unrelated transitive installation.
-
-The current product screen shows connection loading, actionable failure/retry, or voting-unavailable state. It does not claim that database health implies an active poll, fabricate votes, or implement a pretend submission flow. Poll persistence and voting remain pending.
-
-Validation after this refinement: type checks, all 14 unit/UI tests, and the production build passed. Browser checks verified the real connection-error state, keyboard activation of retry, and a 375px mobile viewport without horizontal overflow. A controlled health response verified the voting-unavailable state without poll data; this was UI testing, not proof of a live PostgreSQL connection. Tailwind styles were confirmed through computed background and card radius. The temporary preview server was stopped afterward.
+My contribution was directing the work, questioning assumptions, and reviewing the explanations and evidence. Implementation and corrections remained AI-assisted.

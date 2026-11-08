@@ -1,15 +1,33 @@
 import { fileURLToPath } from "node:url";
+import { createServer } from "node:http";
+import { httpOrigin } from "@polling/shared/development";
 import { createApp } from "./app.ts";
 import { readConfig } from "./config.ts";
 import { createPool } from "./db/pool.ts";
+import { migrate } from "./db/migrate.ts";
+import { createPollRepository } from "./db/pollRepository.ts";
+import { createFailurePolicy } from "./testing/failurePolicy.ts";
+import { createPollSocketServer } from "./realtime/socketServer.ts";
 
 const config = readConfig();
 const pool = createPool(config.DATABASE_URL);
 pool.on("error", (error) => console.error("Idle PostgreSQL connection failed", error));
 
+try {
+  await migrate(pool);
+} catch (error) {
+  console.error("Database initialization failed; server will not start", error);
+  await pool.end();
+  process.exit(1);
+}
+
+const server = createServer();
 const app = createApp({
+  notifyPollChanged: (pollId) => sockets.notifyPollChanged(pollId),
+  repository: createPollRepository(pool),
+  shouldFailVote: createFailurePolicy(config.VOTE_FAILURE_RATE),
   checkDatabase: async () => {
-    await pool.query("SELECT 1");
+    await pool.query("SELECT 1 FROM polls LIMIT 1");
   },
   logError: (message, error) => console.error(message, error),
   ...(config.NODE_ENV === "production"
@@ -17,13 +35,18 @@ const app = createApp({
     : {}),
 });
 
-const server = app.listen(config.PORT, config.HOST, () => {
-  console.log(`Polling API listening on http://${config.HOST}:${config.PORT}`);
+server.on("request", app);
+const sockets = createPollSocketServer(server, (message, error) => console.error(message, error));
+server.listen(config.PORT, config.HOST, () => {
+  console.log(`Polling API listening on ${httpOrigin(config.HOST, config.PORT)}`);
 });
 
 server.on("error", async (error) => {
   console.error("HTTP server failed", error);
   process.exitCode = 1;
+  sockets.close((closeError) => {
+    if (closeError) console.error("Live update shutdown failed", closeError);
+  });
   await pool.end();
 });
 
@@ -40,7 +63,7 @@ function shutdown(signal: string) {
   }, 10000);
   timeout.unref();
 
-  server.close((error) => {
+  sockets.close((error) => {
     if (error) {
       console.error("HTTP shutdown failed", error);
       process.exitCode = 1;

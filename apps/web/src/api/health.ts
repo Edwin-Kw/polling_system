@@ -1,7 +1,7 @@
-import { healthResponseSchema } from "@polling/shared";
+import { apiPaths, healthResponseSchema } from "@polling/shared";
 
 export async function fetchHealth(signal: AbortSignal) {
-  const response = await fetch("/api/health", { signal });
+  const response = await fetch(apiPaths.health, { signal });
 
   if (!response.ok) {
     throw new Error(`Backend readiness check failed (HTTP ${response.status}). Check PostgreSQL and the API.`);
