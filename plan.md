@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-07  
 **Assignment:** [Coding assignment](./P&T%20High-Concurrency%20Polling%20System%20-%20Coding%20assignment.md)  
-**Status:** Setup scaffold created; validation results are recorded in `README.md` and `AGENT_WORKFLOW.md`. Voting implementation remains pending.
+**Status:** Voting implementation and validation completed on 2026-11-08; evidence is recorded in `README.md` and `AGENT_WORKFLOW.md`. The latest changes still need a user-requested commit/push.
 
 ## 1. Summary and scope
 
@@ -10,9 +10,22 @@ Build a small TypeScript monorepo using React, Node.js, Express, and PostgreSQL.
 
 PostgreSQL is feasible for local development: Docker supplies the database, so only Docker Desktop with Compose is required for the containerized workflow. A named Docker volume preserves votes across restarts.
 
-Use one seeded active poll with four options, a stable mock user identifier, and results refreshed every two seconds. The reference screenshot's poll switcher is illustrative; supporting multiple selectable polls is outside the four-hour MVP. Database tables still use poll IDs.
+This implementation seeds one active poll with four options, uses a stable mock user identifier, and refreshes results every two seconds. These are MVP choices, not quantities or intervals mandated by the assignment. The written requirements ask for the active poll; the reference screenshot also shows a poll switcher, which this implementation does not provide. Database tables still use poll IDs.
 
-Do not add authentication, Redis, microservices, an ORM, a generic repository framework, a global state library, or WebSockets. React's built-in state and HTTP polling are sufficient. Use Tailwind CSS and shadcn/ui as requested; keep all setup/agent commentary out of the product UI.
+The assignment does not prohibit authentication, Redis, microservices, ORMs, repository abstractions, global state libraries, or WebSockets. This implementation uses a mock user ID, direct PostgreSQL queries, React hooks, and HTTP polling to keep the four-hour solution focused. These choices must not be presented as assignment restrictions. Polling, WebSockets, and Server-Sent Events are all explicitly allowed ways to refresh results.
+
+Tailwind CSS and shadcn/ui are additional user preferences, not requirements in the original assignment. Keeping setup/agent commentary out of the product UI is also a product presentation choice.
+
+### Requirements from the original assignment
+
+- React frontend and Node.js backend with poll display, answer selection, and submission.
+- Immediate optimistic UI updates, plus vote counts and percentages.
+- A mechanism to keep results current, with polling, WebSockets, or SSE given as examples.
+- Endpoints to fetch the active poll, submit a vote, and fetch results.
+- Concurrency-safe storage that records all 100 concurrent votes for the same option without lost updates. A database of choice or a robust in-memory structure is permitted.
+- A simulated 15% submission failure rate, with graceful rollback and contextual errors.
+- Backend-enforced prevention of repeat voting by the same user; mock user ID, session, or IP simulation is permitted. Real authentication is not required.
+- Git source, atomic logical commits, a locally runnable application, at least one critical-failure automated test suite, and honest AI workflow documentation.
 
 ## 2. Technical context
 
@@ -115,7 +128,7 @@ polling_sys/
         results.test.ts
 ```
 
-The tree describes the target layout. Workspace manifests, shared types, API/configuration scaffold, and frontend/test foundations now exist; voting-specific files remain planned. Keep layers small: routes call the vote service and repository; do not add a class or factory for every function.
+The tree describes the implemented architecture. Startup initializes the SQL schema/seed; routes call the vote service and repository. Additional focused client, identity, poll-contract, and TCP runtime tests cover the same requirements.
 
 ## 4. Reuse and unit-test boundaries
 
@@ -190,7 +203,7 @@ The unique database constraint prevents a retry from recording a second vote eve
 
 ## 7. Docker and local commands
 
-These are commands the implementation must provide; they do not work yet.
+These commands are implemented. Docker startup was validated with a temporary port-3001 override to avoid interrupting the existing development API on port 3000.
 
 ### Containerized workflow
 
@@ -255,7 +268,7 @@ Minimum assignment evidence is one critical-failure suite. Aim to deliver both t
 
 ## 9. Implementation steps and inline tasks
 
-The following REQ IDs are planning labels derived from the assignment, not IDs present in the source document. Only the two setup tasks are checked; the remaining tasks need full implementation and validation.
+The following REQ IDs are planning labels derived from the assignment, not IDs present in the source document. Implementation and validation are complete; publishing and meaningful subsequent commits remain user-controlled.
 
 ### Phase 1: Setup - 25 minutes
 
@@ -270,62 +283,62 @@ The following REQ IDs are planning labels derived from the assignment, not IDs p
 **Plan 2.1:** Implement persistent poll storage and database-enforced single voting.  
 **Requirements:** REQ-004, REQ-005, REQ-007.
 
-- [ ] T003 [Plan:2.1] Implement constraints and repeatable seed/setup in `apps/api/src/db/schema.sql`, `apps/api/src/db/seed.sql`, and `apps/api/src/db/migrate.ts`.
-- [ ] T004 [Plan:2.1] Implement parameterized insert and snapshot-consistent results query in `apps/api/src/db/pollRepository.ts` with connection setup in `apps/api/src/db/pool.ts`.
+- [x] T003 [Plan:2.1] Implement constraints and repeatable seed/setup in `apps/api/src/db/schema.sql`, `apps/api/src/db/seed.sql`, and `apps/api/src/db/migrate.ts`.
+- [x] T004 [Plan:2.1] Implement parameterized insert and snapshot-consistent results query in `apps/api/src/db/pollRepository.ts` with connection setup in `apps/api/src/db/pool.ts`.
 
 **Plan 2.2:** Wire validated endpoints and deterministic failure simulation.  
 **Requirements:** REQ-004, REQ-006, REQ-007.
 
-- [ ] T005 [Plan:2.2] Implement `apps/api/src/services/voteService.ts`, `apps/api/src/routes/polls.ts`, `apps/api/src/app.ts`, and `apps/api/src/middleware/errorHandler.ts` with injected dependencies and explicit error codes.
-- [ ] T006 [Plan:2.2] Implement injectable pre-write failure policy in `apps/api/src/testing/failurePolicy.ts`, validate environment in `apps/api/src/config.ts`, and wire runtime startup/shutdown in `apps/api/src/server.ts`.
+- [x] T005 [Plan:2.2] Implement `apps/api/src/services/voteService.ts`, `apps/api/src/routes/polls.ts`, `apps/api/src/app.ts`, and `apps/api/src/middleware/errorHandler.ts` with injected dependencies and explicit error codes.
+- [x] T006 [Plan:2.2] Implement injectable pre-write failure policy in `apps/api/src/testing/failurePolicy.ts`, validate environment in `apps/api/src/config.ts`, and wire runtime startup/shutdown in `apps/api/src/server.ts`.
 
 ### Phase 3: US1 - Vote with immediate feedback - 45 minutes
 
 **Plan 3.1:** Build reusable presentation and pure result calculations.  
 **Requirements:** REQ-001, REQ-002, REQ-008.
 
-- [ ] T007 [US1] [Plan:3.1] Implement and test `packages/shared/src/results.ts` and `packages/shared/src/results.test.ts`.
-- [ ] T008 [US1] [Plan:3.1] Implement accessible `apps/web/src/components/PollVotingForm.tsx`, `PollResults.tsx`, `OptionResult.tsx`, and `StatusMessage.tsx`; compose them in `apps/web/src/App.tsx` with `apps/web/src/styles.css`.
+- [x] T007 [US1] [Plan:3.1] Implement and test `packages/shared/src/results.ts` and `packages/shared/src/results.test.ts`.
+- [x] T008 [US1] [Plan:3.1] Implement accessible `apps/web/src/components/PollVotingForm.tsx`, `PollResults.tsx`, `OptionResult.tsx`, and `StatusMessage.tsx`; compose them in `apps/web/src/App.tsx` with `apps/web/src/styles.css`.
 
 **Plan 3.2:** Implement optimistic overlay, rollback, and stable mock identity.  
 **Requirements:** REQ-001, REQ-002, REQ-006, REQ-007.
 
-- [ ] T009 [US1] [Plan:3.2] Implement typed request handling in `apps/web/src/api/polls.ts` and injectable stable ID provider in `apps/web/src/identity/mockUser.ts`.
-- [ ] T010 [US1] [Plan:3.2] Implement pure optimistic state in `apps/web/src/state/pollState.ts` and submission/reconciliation in `apps/web/src/hooks/usePoll.ts`; wire the hook into `apps/web/src/App.tsx`.
+- [x] T009 [US1] [Plan:3.2] Implement typed request handling in `apps/web/src/api/polls.ts` and injectable stable ID provider in `apps/web/src/identity/mockUser.ts`.
+- [x] T010 [US1] [Plan:3.2] Implement pure optimistic state in `apps/web/src/state/pollState.ts` and submission/reconciliation in `apps/web/src/hooks/usePoll.ts`; wire the hook into `apps/web/src/App.tsx`.
 
 ### Phase 4: US2 - Keep results live - 20 minutes
 
 **Plan 4.1:** Add non-overlapping refresh, stale-response protection, and recovery.  
 **Requirements:** REQ-002, REQ-003, REQ-006.
 
-- [ ] T011 [US2] [Plan:4.1] Add two-second refresh and cancellation cleanup to `apps/web/src/hooks/usePoll.ts`; expose updating and stale-result warnings to `apps/web/src/components/PollResults.tsx`.
+- [x] T011 [US2] [Plan:4.1] Add two-second refresh and cancellation cleanup to `apps/web/src/hooks/usePoll.ts`; expose updating and stale-result warnings to `apps/web/src/components/PollResults.tsx`.
 
 ### Phase 5: Critical validation - 55 minutes
 
 **Plan 5.1:** Prove database integrity and failure behavior.  
 **Requirements:** REQ-004, REQ-005, REQ-006, REQ-007, REQ-011.
 
-- [ ] T012 [Plan:5.1] Configure `vitest.config.ts` and `vitest.integration.config.ts`; implement isolated-schema harness in `apps/api/test/database.ts` and concurrent/validation HTTP tests in `apps/api/test/votes.integration.test.ts`.
-- [ ] T013 [Plan:5.1] Test failure thresholds and service error mapping in `apps/api/src/testing/failurePolicy.test.ts` and `apps/api/src/services/voteService.test.ts`.
+- [x] T012 [Plan:5.1] Configure `vitest.config.ts` and `vitest.integration.config.ts`; implement isolated-schema harness in `apps/api/test/database.ts` and concurrent/validation HTTP tests in `apps/api/test/votes.integration.test.ts`.
+- [x] T013 [Plan:5.1] Test failure thresholds and service error mapping in `apps/api/src/testing/failurePolicy.test.ts` and `apps/api/src/services/voteService.test.ts`.
 
 **Plan 5.2:** Prove optimistic behavior and refresh race handling.  
 **Requirements:** REQ-001, REQ-002, REQ-003, REQ-006, REQ-011.
 
-- [ ] T014 [Plan:5.2] Implement `apps/web/src/test/setup.ts`, `apps/web/src/state/pollState.test.ts`, `apps/web/src/hooks/usePoll.test.tsx`, and `apps/web/src/components/PollVotingForm.test.tsx` using deferred promises and fake timers.
+- [x] T014 [Plan:5.2] Implement `apps/web/src/test/setup.ts`, `apps/web/src/state/pollState.test.ts`, `apps/web/src/hooks/usePoll.test.tsx`, and `apps/web/src/components/PollVotingForm.test.tsx` using deferred promises and fake timers.
 
 ### Phase 6: Delivery and review - 50 minutes
 
 **Plan 6.1:** Package local runtime and test execution.  
 **Requirements:** REQ-009, REQ-010, REQ-011.
 
-- [ ] T015 [Plan:6.1] Create `Dockerfile`, `compose.yaml`, `.dockerignore`, `.gitignore`, and `.env.example`; validate typecheck, tests, build, Docker readiness, and persistence using the commands in section 7.
+- [x] T015 [Plan:6.1] Create `Dockerfile`, `compose.yaml`, `.dockerignore`, `.gitignore`, and `.env.example`; validate typecheck, tests, build, Docker readiness, and persistence using the commands in section 7.
 
 **Plan 6.2:** Document actual workflow and prepare the repository handoff.  
 **Requirements:** REQ-009, REQ-010, REQ-012.
 
-- [ ] T016 [Plan:6.2] Write verified setup/test commands in `README.md`, actual prompts and audited fixes in `AGENT_WORKFLOW.md`, and complete the checklist in `DELIVERABLES.md`; inspect repository history and tracked files for the handoff.
+- [x] T016 [Plan:6.2] Write verified setup/test commands in `README.md`, actual prompts and audited fixes in `AGENT_WORKFLOW.md`, and record verified/pending handoff items in `DELIVERABLES.md`; inspect repository history and tracked files for the handoff.
 
-Total time budget: 240 minutes. Commit each meaningful working slice throughout implementation, not only during phase 6. If behind schedule, reduce styling and optional refinements, not integrity checks or required deliverables.
+Total time budget: 240 minutes. Make logical commits only when requested; never fabricate incremental history. If behind schedule, reduce styling and optional refinements, not integrity checks or required deliverables.
 
 ### Dependencies
 
@@ -350,4 +363,4 @@ These express prerequisites, not a requirement to use parallel agents.
 | REQ-011 | Automated tests covering a critical failure mode | 5.1, 5.2, 6.1 | Concurrency and rollback suites; test-profile service |
 | REQ-012 | Atomic logical commits and honest AI workflow notes | 6.2 | Actual Git history, `AGENT_WORKFLOW.md`, delivery checklist |
 
-REQ-008 comes from the user's additional organization/testing request. All 12 requirements have planned coverage; setup is implemented, but complete assignment coverage is not yet claimed.
+REQ-008 comes from the user's additional organization/testing request, not the original assignment. Functional voting, concurrency, rollback, and local-runtime requirements have implementation/test evidence. The commit-history handoff remains pending; passing application tests does not fulfill that separate deliverable.
