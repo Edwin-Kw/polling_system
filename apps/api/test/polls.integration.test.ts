@@ -1,6 +1,6 @@
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { pollResultsSchema, pollSchema } from "@polling/shared";
+import { apiPaths, MOCK_USER_HEADER, pollResultsSchema, pollSchema } from "@polling/shared";
 import { createApp } from "../src/app.ts";
 import { createPollRepository } from "../src/db/pollRepository.ts";
 import { createTestDatabase } from "./database.ts";
@@ -20,13 +20,13 @@ afterAll(async () => { if (database) await database.close(); });
 
 describe("poll display and result contracts", () => {
   it("loads the seeded poll with ordered zero-vote options", async () => {
-    const active = await request(app).get("/api/polls/active").set("X-Mock-User-Id", "reader");
+    const active = await request(app).get(apiPaths.activePoll).set(MOCK_USER_HEADER, "reader");
     expect(active.status).toBe(200);
     const poll = pollSchema.parse(active.body);
     expect(poll.options.map((option) => option.label)).toEqual([
       "Dark mode", "Mobile app", "Data exports", "More integrations",
     ]);
-    const response = await request(app).get(`/api/polls/${poll.id}/results`).set("X-Mock-User-Id", "reader");
+    const response = await request(app).get(apiPaths.results(poll.id)).set(MOCK_USER_HEADER, "reader");
     const results = pollResultsSchema.parse(response.body);
     expect(results.totalVotes).toBe(0);
     expect(results.myVote).toBeNull();
@@ -36,10 +36,10 @@ describe("poll display and result contracts", () => {
   it("missing or malformed identities cannot vote or read personalized results", async () => {
     const poll = await createPollRepository(database.pool).getActivePoll();
     if (!poll) throw new Error("No seeded poll");
-    expect((await request(app).get("/api/polls/active")).status).toBe(400);
-    expect((await request(app).get(`/api/polls/${poll.id}/results`).set("X-Mock-User-Id", "bad user")).status).toBe(400);
-    const response = await request(app).post(`/api/polls/${poll.id}/votes`)
-      .set("X-Mock-User-Id", "x".repeat(81)).send({ optionId: poll.options[0]?.id });
+    expect((await request(app).get(apiPaths.activePoll)).status).toBe(400);
+    expect((await request(app).get(apiPaths.results(poll.id)).set(MOCK_USER_HEADER, "bad user")).status).toBe(400);
+    const response = await request(app).post(apiPaths.votes(poll.id))
+      .set(MOCK_USER_HEADER, "x".repeat(81)).send({ optionId: poll.options[0]?.id });
     expect(response.status).toBe(400);
     expect((await createPollRepository(database.pool).getResults(poll.id, "reader"))?.totalVotes).toBe(0);
   });
@@ -47,8 +47,8 @@ describe("poll display and result contracts", () => {
     const repo = createPollRepository(database.pool);
     const poll = await repo.getActivePoll();
     if (!poll || !poll.options[1]) throw new Error("No seeded option");
-    const response = await request(app).post(`/api/polls/${poll.id}/votes`)
-      .set("X-Mock-User-Id", "voter").send({ optionId: poll.options[1].id });
+    const response = await request(app).post(apiPaths.votes(poll.id))
+      .set(MOCK_USER_HEADER, "voter").send({ optionId: poll.options[1].id });
     expect(response.status).toBe(201);
     expect((await repo.getResults(poll.id, "voter"))?.myVote).toBe(poll.options[1].id);
     const other = await repo.getResults(poll.id, "reader");

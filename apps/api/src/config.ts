@@ -1,12 +1,11 @@
 import { z } from "zod";
+import { serverAddressSchema } from "@polling/shared/development";
 
-const environmentSchema = z.object({
+const environmentSchema = serverAddressSchema.extend({
   DATABASE_URL: z.url().refine(
     (value) => value.startsWith("postgresql://") || value.startsWith("postgres://"),
     "DATABASE_URL must use the PostgreSQL protocol",
   ),
-  HOST: z.string().min(1).default("127.0.0.1"),
-  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   VOTE_FAILURE_RATE: z.coerce.number().min(0).max(1).default(0.15),
 });

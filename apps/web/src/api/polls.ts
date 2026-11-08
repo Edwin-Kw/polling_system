@@ -1,6 +1,6 @@
 import { z } from "zod";
 import {
-  activePollsSchema, apiErrorResponseSchema, pollResultsSchema, pollSchema, voteResponseSchema,
+  activePollsSchema, apiErrorResponseSchema, apiPaths, MOCK_USER_HEADER, pollResultsSchema, pollSchema, voteResponseSchema,
 } from "@polling/shared";
 import type { ApiErrorCode, Poll, PollResults, VoteResponse } from "@polling/shared";
 
@@ -33,7 +33,7 @@ async function send<T>(
   try {
     const response = await fetch(path, {
       method: body ? "POST" : "GET",
-      headers: { "X-Mock-User-Id": userId, ...(body ? { "Content-Type": "application/json" } : {}) },
+      headers: { [MOCK_USER_HEADER]: userId, ...(body ? { "Content-Type": "application/json" } : {}) },
       signal: controller.signal,
       cache: "no-store",
       ...(body ? { body: JSON.stringify(body) } : {}),
@@ -52,10 +52,10 @@ async function send<T>(
 }
 
 export const pollApi: PollApi = {
-  getActivePoll: (userId, signal) => send("/api/polls/active", userId, signal, pollSchema, 200),
-  getActivePolls: (userId, signal) => send("/api/polls", userId, signal, activePollsSchema, 200),
+  getActivePoll: (userId, signal) => send(apiPaths.activePoll, userId, signal, pollSchema, 200),
+  getActivePolls: (userId, signal) => send(apiPaths.polls, userId, signal, activePollsSchema, 200),
   getResults: (pollId, userId, signal) =>
-    send(`/api/polls/${pollId}/results`, userId, signal, pollResultsSchema, 200),
+    send(apiPaths.results(pollId), userId, signal, pollResultsSchema, 200),
   submitVote: (pollId, optionId, userId, signal) =>
-    send(`/api/polls/${pollId}/votes`, userId, signal, voteResponseSchema, 201, { optionId }),
+    send(apiPaths.votes(pollId), userId, signal, voteResponseSchema, 201, { optionId }),
 };

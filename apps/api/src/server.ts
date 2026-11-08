@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
+import { httpOrigin } from "@polling/shared/development";
 import { createApp } from "./app.ts";
 import { readConfig } from "./config.ts";
 import { createPool } from "./db/pool.ts";
@@ -37,7 +38,7 @@ const app = createApp({
 server.on("request", app);
 const sockets = createPollSocketServer(server, (message, error) => console.error(message, error));
 server.listen(config.PORT, config.HOST, () => {
-  console.log(`Polling API listening on http://${config.HOST}:${config.PORT}`);
+  console.log(`Polling API listening on ${httpOrigin(config.HOST, config.PORT)}`);
 });
 
 server.on("error", async (error) => {

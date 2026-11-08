@@ -142,6 +142,8 @@ The tree describes the implemented architecture. Startup initializes the SQL sch
 - `api/polls.ts` owns headers, JSON handling, non-2xx errors, and cancellation. Do not duplicate fetch handling inside components.
 - `api/pollUpdates.ts` owns the Socket.IO client, message validation, reconnection, and cleanup. The hook injects its subscription interface for deterministic tests.
 - The shared package exports transport types and pure helpers, not server configuration or database code. HTTP input still requires runtime validation.
+- `packages/shared/src/transport.ts` is the source of API paths/router patterns, the mock identity header, and Socket.IO path/event names. Clients, Express, Vite, and request tests reuse those definitions; contract tests independently assert the published strings.
+- `packages/shared/src/development.ts` is a separate Node-side export for host/port defaults, address validation, and origin formatting. API configuration and Vite use the same root `.env` address settings with shell overrides; database configuration stays in the API workspace. Vite reads only address fields without letting the backend's `NODE_ENV` change browser build mode.
 - `createApp` accepts the repository and failure policy. Importing it does not open a port or connect to PostgreSQL.
 - Inject `random`, the frontend API interface, and the mock user provider for deterministic tests. Use fake timers for refresh tests.
 - Keep pure unit tests independent of Docker. Do not mock SQL and describe that as a concurrency proof.

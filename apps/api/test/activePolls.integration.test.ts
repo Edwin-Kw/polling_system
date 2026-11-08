@@ -1,6 +1,6 @@
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { activePollsSchema, pollResultsSchema, pollSchema } from "@polling/shared";
+import { activePollsSchema, apiPaths, MOCK_USER_HEADER, pollResultsSchema, pollSchema } from "@polling/shared";
 import { createApp } from "../src/app.ts";
 import { createPollRepository } from "../src/db/pollRepository.ts";
 import { migrate } from "../src/db/migrate.ts";
@@ -18,18 +18,18 @@ beforeAll(async () => {
   });
 });
 afterAll(async () => { if (database) await database.close(); });
-const list = () => request(app).get("/api/polls").set("X-Mock-User-Id", "reader");
+const list = () => request(app).get(apiPaths.polls).set(MOCK_USER_HEADER, "reader");
 
 describe("multiple active polls backed by PostgreSQL", () => {
   it("lists ordered real polls, excludes closed polls, and retains the default endpoint", async () => {
-    expect((await request(app).get("/api/polls")).status).toBe(400);
+    expect((await request(app).get(apiPaths.polls)).status).toBe(400);
     const response = await list();
     expect(response.status).toBe(200);
     expect(response.headers["cache-control"]).toBe("no-store");
     const polls = activePollsSchema.parse(response.body);
     expect(polls).toHaveLength(3);
     expect(polls.map((poll) => poll.id)).toEqual([...polls.map((poll) => poll.id)].sort());
-    const active = await request(app).get("/api/polls/active").set("X-Mock-User-Id", "reader");
+    const active = await request(app).get(apiPaths.activePoll).set(MOCK_USER_HEADER, "reader");
     expect(pollSchema.parse(active.body)).toEqual(polls[0]);
     const second = polls[1]!;
     await database.pool.query("UPDATE polls SET active = false WHERE id = $1", [second.id]);
@@ -37,7 +37,7 @@ describe("multiple active polls backed by PostgreSQL", () => {
       expect(activePollsSchema.parse((await list()).body).map((poll) => poll.id)).not.toContain(second.id);
       await database.pool.query("UPDATE polls SET active = false");
       expect((await list()).body).toEqual([]);
-      expect((await request(app).get("/api/polls/active").set("X-Mock-User-Id", "reader")).status).toBe(404);
+      expect((await request(app).get(apiPaths.activePoll).set(MOCK_USER_HEADER, "reader")).status).toBe(404);
     } finally {
       await database.pool.query("UPDATE polls SET active = true");
     }
@@ -49,15 +49,15 @@ describe("multiple active polls backed by PostgreSQL", () => {
     const second = polls[1]!;
     for (const poll of [first, second]) {
       const optionId = poll.options[0]!.id;
-      const vote = () => request(app).post(`/api/polls/${poll.id}/votes`)
-        .set("X-Mock-User-Id", "multi-voter").send({ optionId });
+      const vote = () => request(app).post(apiPaths.votes(poll.id))
+        .set(MOCK_USER_HEADER, "multi-voter").send({ optionId });
       expect((await vote()).status).toBe(201);
       expect((await vote()).status).toBe(409);
-      const response = await request(app).get(`/api/polls/${poll.id}/results`).set("X-Mock-User-Id", "multi-voter");
+      const response = await request(app).get(apiPaths.results(poll.id)).set(MOCK_USER_HEADER, "multi-voter");
       expect(pollResultsSchema.parse(response.body)).toMatchObject({ pollId: poll.id, totalVotes: 1, myVote: optionId });
     }
-    const crossPoll = await request(app).post(`/api/polls/${second.id}/votes`)
-      .set("X-Mock-User-Id", "foreign-option").send({ optionId: first.options[0]!.id });
+    const crossPoll = await request(app).post(apiPaths.votes(second.id))
+      .set(MOCK_USER_HEADER, "foreign-option").send({ optionId: first.options[0]!.id });
     expect(crossPoll.status).toBe(400);
     expect((await createPollRepository(database.pool).getResults(second.id, "foreign-option"))?.totalVotes).toBe(1);
     expect((await createPollRepository(database.pool).getResults(polls[2]!.id, "multi-voter"))?.totalVotes).toBe(0);

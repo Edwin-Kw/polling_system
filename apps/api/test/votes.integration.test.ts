@@ -1,5 +1,6 @@
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { apiPaths, MOCK_USER_HEADER } from "@polling/shared";
 import { createApp } from "../src/app.ts";
 import { createPollRepository } from "../src/db/pollRepository.ts";
 import { migrate } from "../src/db/migrate.ts";
@@ -27,9 +28,9 @@ beforeAll(async () => {
 afterAll(async () => { if (database) await database.close(); });
 
 const vote = (user: string, option = optionId) =>
-  request(app).post(`/api/polls/${pollId}/votes`).set("X-Mock-User-Id", user).send({ optionId: option });
+  request(app).post(apiPaths.votes(pollId)).set(MOCK_USER_HEADER, user).send({ optionId: option });
 const results = (user = "observer") =>
-  request(app).get(`/api/polls/${pollId}/results`).set("X-Mock-User-Id", user);
+  request(app).get(apiPaths.results(pollId)).set(MOCK_USER_HEADER, user);
 
 describe("real PostgreSQL voting integrity", () => {
   it("persists exactly 100 concurrent votes for the same option", async () => {
@@ -76,14 +77,14 @@ describe("real PostgreSQL voting integrity", () => {
   });
 
   it("validates identity, poll IDs and exact body shape", async () => {
-    expect((await request(app).post(`/api/polls/${pollId}/votes`).send({ optionId })).status).toBe(400);
+    expect((await request(app).post(apiPaths.votes(pollId)).send({ optionId })).status).toBe(400);
     expect((await vote("bad user")).status).toBe(400);
-    expect((await request(app).get("/api/polls/not-an-id/results")
-      .set("X-Mock-User-Id", "observer")).status).toBe(400);
-    expect((await request(app).post(`/api/polls/${pollId}/votes`).set("X-Mock-User-Id", "extra")
+    expect((await request(app).get(apiPaths.results("not-an-id"))
+      .set(MOCK_USER_HEADER, "observer")).status).toBe(400);
+    expect((await request(app).post(apiPaths.votes(pollId)).set(MOCK_USER_HEADER, "extra")
       .send({ optionId, extra: true })).status).toBe(400);
-    expect((await request(app).get("/api/polls/00000000-0000-4000-8000-000000000096/results")
-      .set("X-Mock-User-Id", "observer")).status).toBe(404);
+    expect((await request(app).get(apiPaths.results("00000000-0000-4000-8000-000000000096"))
+      .set(MOCK_USER_HEADER, "observer")).status).toBe(404);
   });
 
   it("simulated failure happens before any database write", async () => {
@@ -95,8 +96,8 @@ describe("real PostgreSQL voting integrity", () => {
       logError: vi.fn(),
     });
     const before = await results();
-    const response = await request(failingApp).post(`/api/polls/${pollId}/votes`)
-      .set("X-Mock-User-Id", "failed-vote").send({ optionId });
+    const response = await request(failingApp).post(apiPaths.votes(pollId))
+      .set(MOCK_USER_HEADER, "failed-vote").send({ optionId });
     expect(response.status).toBe(500);
     expect(response.body.error.code).toBe("SIMULATED_FAILURE");
     expect((await results("failed-vote")).body.myVote).toBeNull();
@@ -108,7 +109,7 @@ describe("real PostgreSQL voting integrity", () => {
     const before = await results("same-user");
     await migrate(database.pool);
     expect((await results("same-user")).body).toEqual(before.body);
-    expect((await request(app).get("/api/polls/active").set("X-Mock-User-Id", "observer")).status).toBe(200);
+    expect((await request(app).get(apiPaths.activePoll).set(MOCK_USER_HEADER, "observer")).status).toBe(200);
   });
 
   it("closed polls reject writes", async () => {
@@ -116,7 +117,7 @@ describe("real PostgreSQL voting integrity", () => {
     try {
       expect((await vote("closed-poll")).body.error.code).toBe("POLL_CLOSED");
       expect((await results("closed-poll")).body.myVote).toBeNull();
-      const active = await request(app).get("/api/polls/active").set("X-Mock-User-Id", "observer");
+      const active = await request(app).get(apiPaths.activePoll).set(MOCK_USER_HEADER, "observer");
       expect(active.status).toBe(200);
       expect(active.body.id).not.toBe(pollId);
     } finally {

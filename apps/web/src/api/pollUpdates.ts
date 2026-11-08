@@ -1,5 +1,5 @@
 import { io, type Socket } from "socket.io-client";
-import { pollChangedSchema } from "@polling/shared";
+import { POLL_CHANGED_EVENT, SOCKET_PATH, pollChangedSchema } from "@polling/shared";
 import type { ClientToServerEvents, ServerToClientEvents } from "@polling/shared";
 
 export type LiveConnection = "connecting" | "connected" | "disconnected";
@@ -16,6 +16,7 @@ export const pollUpdates: PollUpdates = {
     const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io({
       autoConnect: false,
       reconnection: true,
+      path: SOCKET_PATH,
     });
     socket.on("connect", () => callbacks.onConnection("connected"));
     socket.on("disconnect", (reason) => {
@@ -26,7 +27,7 @@ export const pollUpdates: PollUpdates = {
       console.error("Unable to connect to live poll updates", error);
       callbacks.onConnection("disconnected");
     });
-    socket.on("poll:changed", (event: unknown) => {
+    socket.on(POLL_CHANGED_EVENT, (event: unknown) => {
       const parsed = pollChangedSchema.safeParse(event);
       if (!parsed.success) {
         console.error("Invalid live poll update", parsed.error);

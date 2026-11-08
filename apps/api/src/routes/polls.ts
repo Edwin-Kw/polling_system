@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { MOCK_USER_HEADER, pollRoutes } from "@polling/shared";
 import type { PollRepository } from "../db/pollRepository.ts";
 import { createVoteService, PollError } from "../services/voteService.ts";
 
@@ -22,26 +23,26 @@ export function createPollRoutes(
     response.set("Cache-Control", "no-store");
     next();
   });
-  router.get("/", async (request, response) => {
-    validate(userSchema, request.get("X-Mock-User-Id"));
+  router.get(pollRoutes.list, async (request, response) => {
+    validate(userSchema, request.get(MOCK_USER_HEADER));
     response.json(await repository.getActivePolls());
   });
-  router.get("/active", async (request, response) => {
-    validate(userSchema, request.get("X-Mock-User-Id"));
+  router.get(pollRoutes.active, async (request, response) => {
+    validate(userSchema, request.get(MOCK_USER_HEADER));
     const poll = await repository.getActivePoll();
     if (!poll) throw new PollError(404, "NOT_FOUND", "No active poll is available.");
     response.json(poll);
   });
-  router.get("/:pollId/results", async (request, response) => {
+  router.get(pollRoutes.results, async (request, response) => {
     const pollId = validate(idSchema, request.params.pollId);
-    const userId = validate(userSchema, request.get("X-Mock-User-Id"));
+    const userId = validate(userSchema, request.get(MOCK_USER_HEADER));
     const results = await repository.getResults(pollId, userId);
     if (!results) throw new PollError(404, "NOT_FOUND", "This poll no longer exists.");
     response.json(results);
   });
-  router.post("/:pollId/votes", async (request, response) => {
+  router.post(pollRoutes.votes, async (request, response) => {
     const pollId = validate(idSchema, request.params.pollId);
-    const userId = validate(userSchema, request.get("X-Mock-User-Id"));
+    const userId = validate(userSchema, request.get(MOCK_USER_HEADER));
     const body: unknown = request.body;
     const { optionId } = validate(voteSchema, body);
     const vote = await submitVote(pollId, optionId, userId);

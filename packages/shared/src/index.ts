@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { POLL_CHANGED_EVENT } from "./transport.ts";
+export { API_BASE_PATH, SOCKET_PATH, MOCK_USER_HEADER, POLL_CHANGED_EVENT, apiPaths, pollRoutes } from "./transport.ts";
 
 export const healthResponseSchema = z.object({
   status: z.literal("ok"),
@@ -69,7 +71,7 @@ export const pollChangedSchema = z.object({ pollId: z.uuid() }).strict();
 export type PollChanged = z.infer<typeof pollChangedSchema>;
 
 export interface ServerToClientEvents {
-  "poll:changed": (event: PollChanged) => void;
+  [POLL_CHANGED_EVENT]: (event: PollChanged) => void;
 }
 export type ClientToServerEvents = Record<string, never>;
 

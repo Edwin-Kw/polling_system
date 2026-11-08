@@ -2,7 +2,8 @@ import { createServer, request } from "node:http";
 import type { Server } from "node:http";
 import { performance } from "node:perf_hooks";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { apiErrorResponseSchema, voteResponseSchema } from "@polling/shared";
+import { apiErrorResponseSchema, apiPaths, MOCK_USER_HEADER, voteResponseSchema } from "@polling/shared";
+import { developmentDefaults, httpOrigin } from "@polling/shared/development";
 import { createApp } from "../src/app.ts";
 import { createPollRepository } from "../src/db/pollRepository.ts";
 import { createTestDatabase } from "./database.ts";
@@ -32,12 +33,12 @@ beforeAll(async () => {
   });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.listen(0, developmentDefaults.host, resolve);
   });
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Missing TCP listener");
   port = address.port;
-  expect((await fetch(`http://127.0.0.1:${port}/api/health`)).status).toBe(200);
+  expect((await fetch(`${httpOrigin(developmentDefaults.host, port)}${apiPaths.health}`)).status).toBe(200);
 });
 afterAll(async () => {
   if (server?.listening) {
@@ -56,10 +57,10 @@ async function burst(users: string[]) {
     let outgoing!: ReturnType<typeof request>;
     const completed = new Promise<{ status: number; body: unknown }>((resolve, reject) => {
       outgoing = request({
-        hostname: "127.0.0.1", port, path: `/api/polls/${pollId}/votes`, method: "POST",
+        hostname: developmentDefaults.host, port, path: apiPaths.votes(pollId), method: "POST",
         agent: false,
         headers: {
-          "X-Mock-User-Id": userId, "Content-Type": "application/json",
+          [MOCK_USER_HEADER]: userId, "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(body), Connection: "close",
         },
       }, (response) => {
@@ -148,7 +149,7 @@ describe("synchronized votes over 100 preconnected TCP clients", () => {
   });
 
   it("rejects a missing mock identity over TCP without changing the persisted count", async () => {
-    const response = await fetch(`http://127.0.0.1:${port}/api/polls/${pollId}/votes`, {
+    const response = await fetch(`${httpOrigin(developmentDefaults.host, port)}${apiPaths.votes(pollId)}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ optionId }),
     });
     expect(response.status).toBe(400);

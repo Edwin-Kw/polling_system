@@ -124,3 +124,17 @@ A new integration suite opens 100 independent TCP connections before releasing a
 The measured distinct-user run accepted and persisted all 100 votes for the same option. Body release spanned 7.990 ms, server body completion spanned 82.730 ms, and the largest one-millisecond bucket contained five requests. A second burst using one user accepted one vote and rejected 99 duplicates; direct SQL confirmed one stored row for that user. Missing identity was rejected without changing the saved count. All three tests passed with exit code 0.
 
 This is real API/database evidence, not a browser simulation or an exact-same-millisecond arrival claim. The temporary server and test schema are cleaned up by the suite; ordinary application votes and volumes are untouched.
+
+## Shared transport paths and development addresses
+
+The user asked: "i have notice, there are a lot of constant (not resused) such as the api path and server address, can you please reuse them, find any method, to make it easy to manage".
+
+Repeated API paths, router patterns, mock identity headers, Socket.IO paths/events, and loopback addresses were replaced with shared definitions. Dynamic path builders use the router patterns and encode poll IDs as a single segment. Contract tests independently assert the existing published strings so changing both callers and routes cannot conceal accidental API drift.
+
+Development defaults and address parsing are a separate Node-side shared export. Vite now follows the same root `.env` HOST/PORT as the API, with shell overrides, instead of always proxying to port 3000. Wildcard listening addresses map to loopback proxy targets; IPv6 origins are formatted correctly. Database configuration remains API-only. Compose mappings remain explicit deployment configuration.
+
+The initial environment-loading approach used Vite's loadEnv against the root `.env`. Production compilation grew from about 400 kB to 618 kB because Vite applied the backend's development NODE_ENV to the browser build. Node's native .env parser now reads address settings without applying build-mode side effects; the final bundle is 400.27 kB. A regression verifies no NODE_ENV/VITE_USER_NODE_ENV mutation or browser environment injection.
+
+Two test-authoring issues were observed and corrected: a config test was accidentally nested inside another test, and a Node configuration test initially ran in jsdom, where import.meta.url was not a file URL. The override test is now a sibling test, and the Vite configuration test explicitly uses the Node environment.
+
+Final validation exited 0 for type checks, 85 unit/UI tests, 26 real PostgreSQL/API/socket integration tests, and production build. A real Vite proxy test uses a non-default ephemeral API port and verifies HTTP voting/read-back, missing identity rejection, Socket.IO HTTP polling, WebSocket upgrade, and live notification after commit. Temporary servers and generated test database schemas are cleaned up. No commits or pushes were made.

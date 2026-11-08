@@ -43,7 +43,18 @@ Copy the environment template only if `.env` does not already exist. Do not comm
 - API health: **http://127.0.0.1:3000/api/health**
 - PostgreSQL: **127.0.0.1:5433**
 
-Vite proxies `/api` and `/socket.io` (including WebSocket upgrades) to port 3000. Keep the default API port for local development. Restart the development servers after changing shared-package source to rebuild its exports.
+Vite proxies `/api` and `/socket.io` (including WebSocket upgrades) to the API's configured `HOST` and `PORT`. Both read the root `.env`, with shell environment variables taking precedence. Defaults remain API port 3000 and web port 5173. Restart the development servers after changing address settings or shared-package source.
+
+### Managing shared paths and addresses
+
+- [Shared transport definitions](./packages/shared/src/transport.ts) own the API base path, poll route patterns/path builders, mock-user header, Socket.IO path, and poll-change event name. The server, browser clients, proxy, and tests reuse them.
+- [Development address definitions](./packages/shared/src/development.ts) own default host/ports, address validation, and HTTP-origin formatting. Import them through `@polling/shared/development` only in Node configuration or tests; they are separate from browser transport exports.
+- Change `HOST` and `PORT` in the root `.env` to point both the API listener and Vite proxy at a different development address. For example, `PORT=3100` moves the API and its proxy target together; the web URL stays on port 5173.
+- Wildcard bind addresses (`0.0.0.0` or `::`) are translated to loopback for the local proxy connection. IPv6 origin formatting is supported.
+- Browser requests remain same-origin relative paths. The root `.env`, database URL, and server configuration are never injected into browser code. Reading API address settings does not change the frontend's production build mode.
+- Docker port mappings and database settings remain deployment-specific in [compose.yaml](./compose.yaml); they are not imported into shared/browser code. The development `PORT` setting does not change Compose's fixed port mapping.
+
+Contract tests retain literal expected URLs to detect unintended API changes. Other tests build requests from the same definitions as the application.
 
 ## Voting and resilience
 
@@ -81,6 +92,8 @@ Votes are individual inserted rows, not mutable JavaScript counters. A composite
 - Server implementation: `apps/api/src/realtime/socketServer.ts`; browser subscription: `apps/web/src/api/pollUpdates.ts`.
 
 ## Validation
+
+Latest shared-configuration refactor: type checks, 85 unit/UI tests, 26 real PostgreSQL/API/socket integration tests, and production build passed. New integration tests run a real Vite proxy against an ephemeral non-default API port and verify health, voting, result read-back, Socket.IO polling, WebSocket upgrade, and committed-vote notifications.
 
 ```powershell
 npm run typecheck

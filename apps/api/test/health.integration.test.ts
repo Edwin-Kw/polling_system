@@ -1,5 +1,6 @@
 import request from "supertest";
 import { afterAll, describe, expect, it } from "vitest";
+import { apiPaths } from "@polling/shared";
 import { createApp } from "../src/app.ts";
 import { readConfig } from "../src/config.ts";
 import { createPool } from "../src/db/pool.ts";
@@ -24,7 +25,7 @@ describe("PostgreSQL connectivity", () => {
       logError: (message, error) => console.error(message, error),
     });
 
-    const response = await request(app).get("/api/health");
+    const response = await request(app).get(apiPaths.health);
     expect(response.status).toBe(200);
     expect(response.body.database).toBe("connected");
   });

@@ -1,6 +1,7 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.ts";
+import { API_BASE_PATH, apiPaths, MOCK_USER_HEADER } from "@polling/shared";
 
 const votingDependencies = {
   repository: {
@@ -17,7 +18,7 @@ describe("API", () => {
   it("reports ready only after the database check succeeds", async () => {
     const checkDatabase = vi.fn().mockResolvedValue(undefined);
     const app = createApp({ ...votingDependencies, checkDatabase, logError: vi.fn() });
-    const response = await request(app).get("/api/health");
+    const response = await request(app).get(apiPaths.health);
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
@@ -36,7 +37,7 @@ describe("API", () => {
       checkDatabase: vi.fn().mockRejectedValue(error),
       logError,
     });
-    const response = await request(app).get("/api/health");
+    const response = await request(app).get(apiPaths.health);
 
     expect(response.status).toBe(503);
     expect(response.body.error.code).toBe("DATABASE_UNAVAILABLE");
@@ -45,7 +46,7 @@ describe("API", () => {
 
   it("returns JSON for an unknown API route", async () => {
     const app = createApp({ ...votingDependencies, checkDatabase: vi.fn(), logError: vi.fn() });
-    const response = await request(app).get("/api/missing");
+    const response = await request(app).get(`${API_BASE_PATH}/missing`);
 
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe("NOT_FOUND");
@@ -55,7 +56,7 @@ describe("API", () => {
     const logError = vi.fn();
     const app = createApp({ ...votingDependencies, checkDatabase: vi.fn(), logError });
     const response = await request(app)
-      .post("/api/missing")
+      .post(`${API_BASE_PATH}/missing`)
       .set("Content-Type", "application/json")
       .send("{invalid");
 
@@ -73,7 +74,7 @@ describe("API", () => {
       checkDatabase: vi.fn(),
       logError,
     });
-    const response = await request(app).get("/api/polls/active").set("X-Mock-User-Id", "user");
+    const response = await request(app).get(apiPaths.activePoll).set(MOCK_USER_HEADER, "user");
     expect(response.status).toBe(500);
     expect(response.body.error.code).toBe("INTERNAL_ERROR");
     expect(logError).toHaveBeenCalledWith("HTTP request failed", error);
@@ -95,8 +96,8 @@ describe("API", () => {
       logError,
       notifyPollChanged: () => { throw error; },
     });
-    const response = await request(app).post(`/api/polls/${pollId}/votes`)
-      .set("X-Mock-User-Id", "user").send({ optionId });
+    const response = await request(app).post(apiPaths.votes(pollId))
+      .set(MOCK_USER_HEADER, "user").send({ optionId });
     expect(response.status).toBe(201);
     expect(logError).toHaveBeenCalledWith("Vote saved but live notification failed", error);
   });

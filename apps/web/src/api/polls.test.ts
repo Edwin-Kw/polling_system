@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError, pollApi } from "./polls.ts";
+import { apiPaths, MOCK_USER_HEADER } from "@polling/shared";
 import { optionId, poll, results } from "../test/poll.ts";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
@@ -14,15 +15,15 @@ describe("poll API client", () => {
   it("sends the mock identity and validates a poll response", async () => {
     const fetch = respond(poll);
     await expect(pollApi.getActivePoll("user", signal())).resolves.toEqual(poll);
-    expect(fetch).toHaveBeenCalledWith("/api/polls/active", expect.objectContaining({
-      headers: { "X-Mock-User-Id": "user" }, cache: "no-store", method: "GET",
+    expect(fetch).toHaveBeenCalledWith(apiPaths.activePoll, expect.objectContaining({
+      headers: { [MOCK_USER_HEADER]: "user" }, cache: "no-store", method: "GET",
     }));
   });
   it("loads and validates real dropdown choices including an empty active list", async () => {
     const fetch = respond([poll]);
     await expect(pollApi.getActivePolls("user", signal())).resolves.toEqual([poll]);
-    expect(fetch).toHaveBeenCalledWith("/api/polls", expect.objectContaining({
-      headers: { "X-Mock-User-Id": "user" }, method: "GET", cache: "no-store",
+    expect(fetch).toHaveBeenCalledWith(apiPaths.polls, expect.objectContaining({
+      headers: { [MOCK_USER_HEADER]: "user" }, method: "GET", cache: "no-store",
     }));
     respond([]);
     await expect(pollApi.getActivePolls("user", signal())).resolves.toEqual([]);
@@ -35,7 +36,7 @@ describe("poll API client", () => {
     const fetch = respond({ pollId: poll.id, optionId }, 201);
     await expect(pollApi.submitVote(poll.id, optionId, "user", signal()))
       .resolves.toEqual({ pollId: poll.id, optionId });
-    expect(fetch).toHaveBeenCalledWith(`/api/polls/${poll.id}/votes`, expect.objectContaining({
+    expect(fetch).toHaveBeenCalledWith(apiPaths.votes(poll.id), expect.objectContaining({
       method: "POST", body: JSON.stringify({ optionId }),
     }));
     respond({ pollId: poll.id, optionId }, 200);
