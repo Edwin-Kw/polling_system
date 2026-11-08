@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-07  
 **Assignment:** [Coding assignment](./P&T%20High-Concurrency%20Polling%20System%20-%20Coding%20assignment.md)  
-**Status:** Voting implementation and validation completed on 2026-11-08; evidence is recorded in `README.md` and `AGENT_WORKFLOW.md`. The latest changes still need a user-requested commit/push.
+**Status:** Voting and required Socket.IO live updates implemented and validated on 2026-11-08. All 68 unit/UI tests, 18 real PostgreSQL/socket integration tests, type checks, build, and Docker tests passed. The latest changes still need a user-requested commit/push.
 
 ## 1. Summary and scope
 
@@ -10,9 +10,9 @@ Build a small TypeScript monorepo using React, Node.js, Express, and PostgreSQL.
 
 PostgreSQL is feasible for local development: Docker supplies the database, so only Docker Desktop with Compose is required for the containerized workflow. A named Docker volume preserves votes across restarts.
 
-This implementation seeds one active poll with four options, uses a stable mock user identifier, and refreshes results every two seconds. These are MVP choices, not quantities or intervals mandated by the assignment. The written requirements ask for the active poll; the reference screenshot also shows a poll switcher, which this implementation does not provide. Database tables still use poll IDs.
+This implementation seeds one active poll with four options and uses a stable mock user identifier. Socket.IO must deliver live change notifications; HTTP polling every two seconds is a disconnected/recovery fallback, not a replacement for sockets. The poll/option quantities and fallback interval are MVP choices, not quantities or intervals mandated by the assignment. The written requirements ask for the active poll; the reference screenshot also shows a poll switcher, which this implementation does not provide. Database tables still use poll IDs.
 
-The assignment does not prohibit authentication, Redis, microservices, ORMs, repository abstractions, global state libraries, or WebSockets. This implementation uses a mock user ID, direct PostgreSQL queries, React hooks, and HTTP polling to keep the four-hour solution focused. These choices must not be presented as assignment restrictions. Polling, WebSockets, and Server-Sent Events are all explicitly allowed ways to refresh results.
+The original assignment does not prohibit authentication, Redis, microservices, ORMs, repository abstractions, global state libraries, or WebSockets. Polling, WebSockets, and Server-Sent Events are all explicitly allowed by that document. The user's subsequent instruction, "where is the socket io it is a must", makes Socket.IO mandatory for this repository implementation. Keep mock identity, direct PostgreSQL queries, and React hooks; these do not conflict with Socket.IO.
 
 Tailwind CSS and shadcn/ui are additional user preferences, not requirements in the original assignment. Keeping setup/agent commentary out of the product UI is also a product presentation choice.
 
@@ -36,6 +36,7 @@ Tailwind CSS and shadcn/ui are additional user preferences, not requirements in 
 | Workspace | npm workspaces | One lockfile and root commands; no extra monorepo tooling |
 | UI | `react`, `react-dom`, Vite | Small SPA with a fast development server |
 | Backend | `express` | Straightforward routing and centralized error handling |
+| Live updates | `socket.io`, `socket.io-client` | Required push notifications; reconnect and safe HTTP fallback |
 | Database | PostgreSQL 17 with `pg` | SQL constraints enforce vote integrity |
 | Runtime validation | `zod` | Validate incoming API data; TypeScript alone cannot do this |
 | Backend tests | `vitest`, `supertest` | Unit tests and HTTP integration tests without binding a port |
@@ -139,6 +140,7 @@ The tree describes the implemented architecture. Startup initializes the SQL sch
 - `pollState` is a pure reducer. Model confirmed server results separately from a pending local vote.
 - `results.ts` calculates totals and percentages in one place. Zero votes produce 0%, never `NaN`; rounding is display-only and may not sum to exactly 100%.
 - `api/polls.ts` owns headers, JSON handling, non-2xx errors, and cancellation. Do not duplicate fetch handling inside components.
+- `api/pollUpdates.ts` owns the Socket.IO client, message validation, reconnection, and cleanup. The hook injects its subscription interface for deterministic tests.
 - The shared package exports transport types and pure helpers, not server configuration or database code. HTTP input still requires runtime validation.
 - `createApp` accepts the repository and failure policy. Importing it does not open a port or connect to PostgreSQL.
 - Inject `random`, the frontend API interface, and the mock user provider for deterministic tests. Use fake timers for refresh tests.
@@ -178,6 +180,16 @@ Use an explicit error body such as `{ error: { code, message } }`. Validate body
 
 The identifier is a simulation, not authentication: clearing localStorage or changing the header can impersonate another mock user. Document this limitation rather than claiming production-grade abuse prevention.
 
+### Required Socket.IO contract
+
+Attach Socket.IO to the API HTTP server after its Express request handler has been registered, so the engine exclusively handles `/socket.io/` requests. Vite proxies both HTTP and WebSocket traffic on that path.
+
+After each committed vote, emit `poll:changed` with exactly `{ pollId }`. Rejections, duplicate votes, and simulated failures emit nothing. Do not broadcast `myVote`, user identifiers, or personalized results; clients fetch their own authoritative snapshot through HTTP. If publishing throws after commit, log it without misreporting the saved vote as rejected.
+
+Clients connect after loading the poll, validate incoming events, and ignore events for other polls. A notification triggers an immediate non-overlapping GET; bursts coalesce into one follow-up read. Socket connection/reconnection also refreshes the snapshot to recover changes missed while offline. Connection status shown in the UI must reflect actual connection events.
+
+This MVP has a single API instance and the default in-process Socket.IO adapter. Multiple API instances do not share notifications; a future multi-instance deployment would require an appropriate shared adapter or database event bridge. PostgreSQL vote integrity remains authoritative independently of the notification transport.
+
 ### Failure simulation
 
 For valid vote submissions, apply a configurable policy before any database mutation. Default rate: 0.15, with `random() < failureRate` returning an explicit HTTP 500 and a stable error code.
@@ -196,7 +208,7 @@ Set the rate to zero for concurrency tests. Inject exact random values to test b
 6. On a known 500 rejection, remove only the pending overlay, retain the latest confirmed results, display a contextual error, and allow retry. Do not restore an entire old snapshot that discards other users' votes.
 7. On 409, remove the overlay and refetch `myVote` and results; disable voting if a vote is already recorded.
 8. On connection loss or client cancellation, the server may already have committed. Remove the overlay, display "Vote status unknown; checking", and reconcile through the results endpoint before offering another submission. Never automatically repeat the POST.
-9. Refresh every two seconds using a timeout scheduled after the prior request completes. Pause refresh while submitting or reconciling; clean up timers and requests on unmount.
+9. Refresh immediately on Socket.IO changes and reconnects. Queue/coalesce changes during an in-flight refresh, and defer them while submitting. Use two-second completion-scheduled polling while sockets are disconnected or results/reconciliation need recovery; use a 30-second safety read while connected. Reconciliation reads remain allowed, but never repeat a POST automatically. Clean up socket listeners, timers, and requests on unmount.
 10. A refresh failure keeps the last confirmed results visible with a warning. Recover on the next scheduled refresh; do not show invented zero counts.
 
 The unique database constraint prevents a retry from recording a second vote even after an ambiguous network failure.
@@ -221,10 +233,10 @@ docker compose down
 - Start the app only after the database is healthy; run idempotent schema/seed initialization before listening.
 - `test`: test-profile service using a Docker build target with development dependencies and source tests. Its command runs unit/UI tests and real PostgreSQL integration tests.
 - API URLs stay relative to `/api`; no Nginx or CORS package is required for the same-origin deployment.
-- A Vite development proxy forwards `/api` to the backend when running outside Docker.
+- A Vite development proxy forwards `/api` and `/socket.io` (including WebSocket upgrades) to the backend when running outside Docker.
 - Publish PostgreSQL only on `127.0.0.1:5433` if host-based development/testing needs it. Inside Compose, connect to `db:5432`, never `localhost`.
 - Supply visibly local-only database placeholders through Compose defaults and `.env.example`; never commit real credentials or `.env`.
-- Use `npm ci`, non-root runtime execution, a named data volume, and SIGTERM cleanup of the HTTP server and database pool.
+- Use `npm ci`, non-root runtime execution, a named data volume, and SIGTERM cleanup of Socket.IO clients, the HTTP server, and the database pool.
 - `docker compose down` preserves data. Document volume deletion separately as destructive; do not include it in routine cleanup.
 
 ### Host development and validation
@@ -311,7 +323,9 @@ The following REQ IDs are planning labels derived from the assignment, not IDs p
 **Plan 4.1:** Add non-overlapping refresh, stale-response protection, and recovery.  
 **Requirements:** REQ-002, REQ-003, REQ-006.
 
-- [x] T011 [US2] [Plan:4.1] Add two-second refresh and cancellation cleanup to `apps/web/src/hooks/usePoll.ts`; expose updating and stale-result warnings to `apps/web/src/components/PollResults.tsx`.
+- [x] T011 [US2] [Plan:4.1] Implement completion-scheduled fallback/recovery refresh and cancellation cleanup in `apps/web/src/hooks/usePoll.ts`; expose stale-result warnings and honest live-connection status in `apps/web/src/components/PollResults.tsx`.
+
+- [x] T017 [US2] [Plan:4.1] Implement required Socket.IO server/client, post-commit invalidations, WebSocket development proxy, burst coalescing, disconnect/reconnect recovery, transport cleanup, and real socket integration tests. Trace REQ-003 and user-added REQ-013.
 
 ### Phase 5: Critical validation - 55 minutes
 
@@ -344,6 +358,8 @@ Total time budget: 240 minutes. Make logical commits only when requested; never 
 
 T002 follows T001. T003 follows T002; T004 follows T003. T005 follows T004; T006 follows T005. T007 follows T002; T008 follows T007. T009 follows T002; T010 follows T007, T008, and T009. T011 follows T010. T012 follows T006; T013 follows T006 and T012. T014 follows T007, T011, and T012. T015 follows the implementation and test tasks. T016 follows T015.
 
+T017 follows T006, T011, and T012, extending the already validated voting flow without changing the HTTP vote contract or database constraints.
+
 These express prerequisites, not a requirement to use parallel agents.
 
 ## 10. Requirement mapping
@@ -352,7 +368,7 @@ These express prerequisites, not a requirement to use parallel agents.
 |--------|------------------------|------------|---------------------------------|
 | REQ-001 | React poll display, answer selection, submission | 1.1, 3.1, 3.2, 5.2 | `apps/web/src/App.tsx`, `components/PollVotingForm.tsx` |
 | REQ-002 | Immediate optimistic counts and percentages | 3.1, 3.2, 4.1, 5.2 | `packages/shared/src/results.ts`, `state/pollState.ts` |
-| REQ-003 | Automatically updated results | 4.1, 5.2 | `hooks/usePoll.ts`, `hooks/usePoll.test.tsx` |
+| REQ-003 | Automatically updated results | 4.1, 5.2 | `hooks/usePoll.ts`, `api/pollUpdates.ts`, realtime hook/socket tests |
 | REQ-004 | Node API for active poll, vote, and results with storage | 1.1, 2.1, 2.2, 5.1 | `apps/api/src/routes/polls.ts`, `db/pollRepository.ts` |
 | REQ-005 | Record 100 simultaneous distinct-user votes accurately | 2.1, 5.1 | `db/schema.sql`, `test/votes.integration.test.ts` |
 | REQ-006 | 15% simulated failure; rollback and contextual errors | 2.2, 3.2, 4.1, 5.1, 5.2 | `testing/failurePolicy.ts`, `hooks/usePoll.test.tsx` |
@@ -362,5 +378,6 @@ These express prerequisites, not a requirement to use parallel agents.
 | REQ-010 | Locally runnable full-stack app | 6.1, 6.2 | `Dockerfile`, `compose.yaml`, `README.md` |
 | REQ-011 | Automated tests covering a critical failure mode | 5.1, 5.2, 6.1 | Concurrency and rollback suites; test-profile service |
 | REQ-012 | Atomic logical commits and honest AI workflow notes | 6.2 | Actual Git history, `AGENT_WORKFLOW.md`, delivery checklist |
+| REQ-013 | User-required Socket.IO live updates | 4.1, 5.1, 5.2 | `apps/api/src/realtime/socketServer.ts`, `apps/web/src/api/pollUpdates.ts`, `apps/api/test/realtime.integration.test.ts` |
 
-REQ-008 comes from the user's additional organization/testing request, not the original assignment. Functional voting, concurrency, rollback, and local-runtime requirements have implementation/test evidence. The commit-history handoff remains pending; passing application tests does not fulfill that separate deliverable.
+REQ-008 and REQ-013 come from additional user requests, not the original assignment. Functional voting, required Socket.IO, concurrency, rollback, and local-runtime requirements have implementation/test evidence. The commit-history handoff remains pending; passing application tests does not fulfill that separate deliverable.

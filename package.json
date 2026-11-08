@@ -24,7 +24,8 @@
     "test:integration": "npm run build:shared && node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts",
     "test:all": "npm test && npm run test:integration",
     "build": "npm run build --workspaces",
-    "start": "npm run start --workspace @polling/api"
+    "start": "npm run start --workspace @polling/api",
+    "db:setup": "node --env-file-if-exists=.env apps/api/src/db/setup.ts"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

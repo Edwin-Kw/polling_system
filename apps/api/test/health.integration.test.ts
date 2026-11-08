@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.ts";
 import { readConfig } from "../src/config.ts";
 import { createPool } from "../src/db/pool.ts";
+import { createPollRepository } from "../src/db/pollRepository.ts";
 
 const config = readConfig();
 const pool = createPool(config.DATABASE_URL);
@@ -15,6 +16,8 @@ afterAll(async () => {
 describe("PostgreSQL connectivity", () => {
   it("checks a real PostgreSQL connection through the health endpoint", async () => {
     const app = createApp({
+      repository: createPollRepository(pool),
+      shouldFailVote: () => false,
       checkDatabase: async () => {
         await pool.query("SELECT 1");
       },
