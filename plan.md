@@ -137,6 +137,7 @@ The tree describes the implemented architecture. Startup initializes the SQL sch
 - `PollResults` receives already derived results and refresh status. `OptionResult` renders each result row.
 - `StatusMessage` consistently renders loading, refresh warnings, and submission errors with appropriate accessible roles.
 - `usePoll` owns orchestration; components remain presentational.
+- `ActivePollSelect` composes the shadcn Select primitive with semantic blue accents, wrapped poll questions, and selected checkmarks. It receives only poll data, disabled/loading state, and callbacks. Preserve arrow-key navigation, Escape focus restoration, and pending/reconciliation locks.
 - `pollState` is a pure reducer. Model confirmed server results separately from a pending local vote.
 - `results.ts` calculates totals and percentages in one place. Zero votes produce 0%, never `NaN`; rounding is display-only and may not sum to exactly 100%.
 - `api/polls.ts` owns headers, JSON handling, non-2xx errors, and cancellation. Do not duplicate fetch handling inside components.

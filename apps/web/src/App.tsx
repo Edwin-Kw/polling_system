@@ -10,7 +10,7 @@ import { PollResults } from "./components/PollResults.tsx";
 import { StatusMessage } from "./components/StatusMessage.tsx";
 import { Button } from "./components/ui/button.tsx";
 import { Card, CardContent, CardHeader } from "./components/ui/card.tsx";
-import { NativeSelect, NativeSelectOption } from "./components/ui/native-select.tsx";
+import { ActivePollSelect } from "./components/ActivePollSelect.tsx";
 
 interface AppProps {
   api?: PollApi;
@@ -56,23 +56,9 @@ export function App({ api = pollApi, getUserId = getMockUserId, updates = pollUp
         )}
       </section>
       <div className="min-w-0 space-y-7 lg:border-l lg:pl-10 xl:pl-14">
-        <div className="space-y-2 [&_[data-slot=native-select-wrapper]]:w-full">
-          <label htmlFor="active-poll-select" className="block text-base font-medium">Switch active poll</label>
-          <NativeSelect id="active-poll-select" value={selectedPollId}
-            title={polls.find((poll) => poll.id === selectedPollId)?.question}
-            disabled={!canSwitchPoll || polls.length === 0}
-            aria-describedby={state.phase === "submitting" || state.phase === "reconciling" ? "poll-switch-help" : undefined}
-            onChange={(event) => { selectPoll(event.target.value); setSelected(null); }}
-            className="h-12 rounded-xl bg-card px-4 pr-10 text-base shadow-sm">
-            {polls.length === 0 && <NativeSelectOption value="">
-              {state.phase === "loading" ? "Loading polls..." : "No active polls"}
-            </NativeSelectOption>}
-            {polls.map((poll) => <NativeSelectOption key={poll.id} value={poll.id}>{poll.question}</NativeSelectOption>)}
-          </NativeSelect>
-          {(state.phase === "submitting" || state.phase === "reconciling") && (
-            <p id="poll-switch-help" className="text-sm text-muted-foreground">Finish saving or checking your vote before switching polls.</p>
-          )}
-        </div>
+        <ActivePollSelect polls={polls} value={selectedPollId} disabled={!canSwitchPoll}
+          loading={state.phase === "loading"} voteInProgress={state.phase === "submitting" || state.phase === "reconciling"}
+          onChange={(pollId) => { selectPoll(pollId); setSelected(null); }} />
         {state.poll && display && (
           <PollResults question={state.poll.question} results={display} selected={chosen} pending={state.phase === "submitting"}
             warning={state.warning} connection={connection} error={state.error} reconciling={state.phase === "reconciling"} />

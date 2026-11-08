@@ -59,6 +59,7 @@ Contract tests retain literal expected URLs to detect unintended API changes. Ot
 ## Voting and resilience
 
 - Select one answer and submit. Results immediately include a pending local vote while the request is in flight.
+- **Switch active poll** uses a styled shadcn menu with a blue selected row and checkmark. Long questions wrap on mobile; arrow keys navigate, Enter selects, and Escape closes the menu and restores focus. Selecting a poll updates both voting and results. Switching remains disabled while saving or reconciling a vote.
 - A known rejection removes only the pending vote, displays an error, and permits a manual retry.
 - A lost connection or unrecognized server failure may occur after commit. The UI removes the pending overlay and checks authoritative results before permitting another submission. It never automatically repeats a POST.
 - A confirmed vote remains confirmed even if the following refresh fails. Refresh warnings retain the last known results and recover automatically.
