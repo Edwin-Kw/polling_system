@@ -15,6 +15,10 @@ function multiplePollsApi() {
   api.getResults.mockImplementation(async (id) => id === secondPoll.id ? secondResults : results);
   return api;
 }
+async function choosePoll(question: string) {
+  await userEvent.click(screen.getByRole("combobox", { name: "Switch active poll" }));
+  await userEvent.click(await screen.findByRole("option", { name: question }));
+}
 
 describe("active poll dropdown user journeys", () => {
   it("switches both questions and results without carrying an unsubmitted answer", async () => {
@@ -22,16 +26,17 @@ describe("active poll dropdown user journeys", () => {
     render(<App api={api} getUserId={getUserId} updates={offlineUpdates} />);
     await userEvent.click(await screen.findByRole("radio", { name: "Dark mode" }));
     const dropdown = screen.getByRole("combobox", { name: "Switch active poll" });
-    expect(dropdown).toHaveValue(poll.id);
+    expect(dropdown).toHaveTextContent(poll.question);
+    await userEvent.click(dropdown);
     expect(screen.getAllByRole("option")).toHaveLength(2);
-    await userEvent.selectOptions(dropdown, secondPoll.id);
+    await userEvent.click(screen.getByRole("option", { name: secondPoll.question }));
     expect(await screen.findByRole("heading", { name: secondPoll.question, level: 2 })).toBeVisible();
     expect(screen.getByRole("heading", { name: secondPoll.question, level: 3 })).toBeVisible();
     expect(screen.getByText("0 votes")).toBeVisible();
     expect(screen.queryByRole("radio", { name: "Dark mode" })).not.toBeInTheDocument();
     for (const radio of screen.getAllByRole("radio")) expect(radio).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Cast Your Vote" })).toBeDisabled();
-    await userEvent.selectOptions(dropdown, poll.id);
+    await choosePoll(poll.question);
     expect(await screen.findByRole("radio", { name: "Dark mode" })).not.toBeChecked();
     expect(screen.getByText("4 votes")).toBeVisible();
     expect(api.submitVote).not.toHaveBeenCalled();
@@ -44,7 +49,7 @@ describe("active poll dropdown user journeys", () => {
     render(<App api={api} getUserId={getUserId} updates={offlineUpdates} />);
     await screen.findByRole("radio", { name: "Dark mode" });
     const dropdown = screen.getByRole("combobox", { name: "Switch active poll" });
-    await userEvent.selectOptions(dropdown, secondPoll.id);
+    await choosePoll(secondPoll.question);
     await userEvent.click(await screen.findByRole("radio", { name: "Redux Toolkit" }));
     await userEvent.click(screen.getByRole("button", { name: "Cast Your Vote" }));
     expect(dropdown).toBeDisabled();
@@ -59,10 +64,10 @@ describe("active poll dropdown user journeys", () => {
     await act(async () => submission.resolve({ pollId: secondPoll.id, optionId }));
     expect(await screen.findByRole("button", { name: "Vote recorded" })).toBeDisabled();
     expect(dropdown).toBeEnabled();
-    await userEvent.selectOptions(dropdown, poll.id);
+    await choosePoll(poll.question);
     expect(await screen.findByRole("radio", { name: "Dark mode" })).toBeEnabled();
     expect(screen.queryByText("Your vote is recorded.")).not.toBeInTheDocument();
-    await userEvent.selectOptions(dropdown, secondPoll.id);
+    await choosePoll(secondPoll.question);
     expect(await screen.findByText("Your vote is recorded.")).toBeVisible();
     expect(screen.getByRole("radio", { name: "Redux Toolkit" })).toBeChecked();
     expect(screen.getByText("1 vote")).toBeVisible();
@@ -77,7 +82,7 @@ describe("active poll dropdown user journeys", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cast Your Vote" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Your vote wasn't saved");
     expect(screen.getByText("4 votes")).toBeVisible();
-    await userEvent.selectOptions(screen.getByRole("combobox"), secondPoll.id);
+    await choosePoll(secondPoll.question);
     expect(await screen.findByRole("radio", { name: "Redux Toolkit" })).toBeEnabled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByText("0 votes")).toBeVisible();
