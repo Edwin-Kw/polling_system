@@ -114,3 +114,13 @@ Final validation: 68 unit/UI tests, 18 real PostgreSQL/socket integration tests,
 Browser checks captured an actual `poll:changed` WebSocket frame through the Vite proxy and verified the results changed. On the production Docker page, only Socket.IO requests were intercepted to simulate a transport outage; real HTTP/database voting continued and the two-second fallback updated results. Removing interception restored connected status. The mobile viewport remained free of horizontal overflow.
 
 Runtime checks initially found no reachable development API. A development launch did not remain attached to its tool session; Docker was used for validation. Once a development API was listening on port 3000, Docker startup encountered a port conflict, so a temporary port-3001 override avoided stopping the active development server. Only the two explicitly created socket-validation voters were removed; existing votes and database data were preserved. The temporary Docker app and override are cleaned up after validation. No commits or pushes were made.
+
+## Measured synchronized voting test
+
+The user asked: "can you preform a testing for many users submit a vote for the exact same option at the exact same millisecond".
+
+A new integration suite opens 100 independent TCP connections before releasing all vote bodies in a synchronous loop. It runs the actual Express API against real PostgreSQL in a unique test-owned schema, with simulated failures disabled. It measures monotonic client-release and server-body-completion timestamps rather than claiming network arrival is perfectly simultaneous.
+
+The measured distinct-user run accepted and persisted all 100 votes for the same option. Body release spanned 7.990 ms, server body completion spanned 82.730 ms, and the largest one-millisecond bucket contained five requests. A second burst using one user accepted one vote and rejected 99 duplicates; direct SQL confirmed one stored row for that user. Missing identity was rejected without changing the saved count. All three tests passed with exit code 0.
+
+This is real API/database evidence, not a browser simulation or an exact-same-millisecond arrival claim. The temporary server and test schema are cleaned up by the suite; ordinary application votes and volumes are untouched.

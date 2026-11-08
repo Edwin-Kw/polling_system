@@ -274,6 +274,8 @@ npm run build
 
 The concurrency tests demonstrate 100 overlapping requests, not guaranteed arrival at the literal same millisecond. The insert and unique constraints provide the integrity guarantee.
 
+The synchronized TCP suite additionally preconnects 100 clients and releases their request bodies in one synchronous loop. It reports client release span, server body-completion span, and the largest group in one millisecond bucket using a monotonic clock. Timing is measured, not asserted to be exactly one millisecond: TCP and event-loop scheduling prevent that guarantee. Run it with `npm run test:integration -- apps\api\test\synchronizedVotes.integration.test.ts --reporter=verbose --silent=false`.
+
 Use a unique, generated PostgreSQL schema per integration suite and configure every test connection to use it. Apply schema and seed there; tear down only that exact test-owned schema after closing its pool. Never truncate the normal application database or use a shared development schema. Wait for all test requests to settle before teardown.
 
 Minimum assignment evidence is one critical-failure suite. Aim to deliver both the concurrency suite and optimistic rollback suite; do not trade them away for optional UI features.
